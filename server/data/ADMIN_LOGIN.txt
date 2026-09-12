@@ -1,0 +1,8 @@
+CourtAI Admin Dashboard Login
+================================
+URL      : http://127.0.0.1:8080/login
+Username : admin
+Password : aRD5SbZwwCPopjde
+================================
+Simpan file ini. Password tidak ditampilkan ulang di UI.
+Untuk reset: hapus data/admin.json lalu restart server.
