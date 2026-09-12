@@ -45,3 +45,9 @@ Thumbs.db
 
 # Node (if any)
 node_modules/
+
+# Server runtime logs & local TLS certs
+server/*.log
+server/certs/
+*.crt
+*.key
