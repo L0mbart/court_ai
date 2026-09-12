@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kelola User - CourtAI</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <div>
+        <div class="brand">USERS</div>
+        <div class="muted">Create / edit / hapus akun login APK</div>
+      </div>
+      <div class="nav-links">
+        <a class="btn" href="/">Dashboard</a>
+        <a class="btn" href="/app">Web App</a>
+        <a class="btn" href="/logout">Logout</a>
+      </div>
+    </div>
+
+    {% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
+    {% if err %}<div class="flash" style="border-color:#ff4d4d;color:#ff4d4d;background:#2a1212">{{ err }}</div>{% endif %}
+
+    <div class="panel">
+      <h2>{% if edit %}Edit User: {{ edit.name }}{% else %}Tambah User{% endif %}</h2>
+      <form method="post" action="{% if edit %}/accounts/{{ edit.id }}/update{% else %}/accounts/create{% endif %}">
+        <div class="row">
+          <div>
+            <label>Nama (tampil di dashboard & APK)</label>
+            <input name="name" required value="{{ edit.name if edit else '' }}" placeholder="User A" />
+          </div>
+          <div>
+            <label>Email (untuk login)</label>
+            <input name="email" type="email" value="{{ edit.email if edit else '' }}" placeholder="usera@courtai.app" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>No. Telepon (untuk login)</label>
+            <input name="phone" value="{{ edit.phone if edit else '' }}" placeholder="08123456789" />
+          </div>
+          <div>
+            <label>Password {% if edit %}(kosongkan jika tidak diganti){% endif %}</label>
+            <input name="password" type="password" {% if not edit %}required{% endif %} placeholder="min. 4 karakter" />
+          </div>
+        </div>
+        <label class="check">
+          <input type="checkbox" name="active" {% if not edit or edit.active %}checked{% endif %} /> Aktif
+        </label>
+        <div style="margin-top:14px;display:flex;gap:8px">
+          <button class="btn btn-primary" type="submit">{% if edit %}Simpan Perubahan{% else %}Create User{% endif %}</button>
+          {% if edit %}<a class="btn" href="/accounts">Batal</a>{% endif %}
+        </div>
+      </form>
+      <p class="muted" style="margin-top:12px">User login APK pakai email ATAU nomor telepon + password. Default demo: <code>demo@courtai.app</code> / <code>court123</code></p>
+    </div>
+
+    <div class="panel">
+      <h2>Daftar akun ({{ accounts|length }})</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Nama</th>
+            <th>Email</th>
+            <th>Telepon</th>
+            <th>Status</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in accounts %}
+          <tr>
+            <td>
+              <strong>{{ u.name }}</strong>
+              <div class="muted">ID: {{ u.id }}</div>
+            </td>
+            <td>{{ u.email or '-' }}</td>
+            <td>{{ u.phone or '-' }}</td>
+            <td>{% if u.active %}<span class="pill shoot">aktif</span>{% else %}<span class="pill">nonaktif</span>{% endif %}</td>
+            <td style="display:flex;gap:6px;flex-wrap:wrap">
+              <a class="btn" href="/accounts/{{ u.id }}/edit">Edit</a>
+              <form method="post" action="/accounts/{{ u.id }}/delete" onsubmit="return confirm('Hapus {{ u.name }}?')">
+                <button class="btn" type="submit" style="border-color:#ff4d4d;color:#ff4d4d">Hapus</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="muted">Belum ada user.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

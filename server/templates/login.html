@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login Admin - CourtAI</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="wrap" style="max-width:440px">
+    <div class="download-hero" style="padding-top:64px">
+      <div class="brand">COURTAI</div>
+      <p>Login admin dashboard</p>
+    </div>
+
+    {% if err %}
+    <div class="flash" style="border-color:#ff4d4d;color:#ff4d4d;background:#2a1212">{{ err }}</div>
+    {% endif %}
+
+    <div class="panel">
+      <form method="post" action="/login">
+        <input type="hidden" name="next" value="{{ next_url }}" />
+        <label>Username</label>
+        <input type="text" name="username" value="admin" autocomplete="username" required autofocus />
+        <label>Password</label>
+        <input type="password" name="password" autocomplete="current-password" required />
+        <div style="margin-top:18px">
+          <button class="btn btn-primary btn-download" type="submit">Masuk</button>
+        </div>
+      </form>
+      <p class="muted" style="margin-top:16px">
+        Kredensial default tersimpan di file server:
+        <code>server/data/ADMIN_LOGIN.txt</code>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

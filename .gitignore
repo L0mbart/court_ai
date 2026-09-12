@@ -1,0 +1,47 @@
+# Secrets & local admin data
+server/data/ADMIN_LOGIN.txt
+server/data/admin.json
+server/data/admin_sessions.json
+server/data/sessions.json
+server/data/users.json
+.env
+.env.*
+*.pem
+*.key
+
+# Large binaries / releases (build locally)
+*.apk
+server/data/uploads/*.apk
+server/data/uploads/*.zip
+apk/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+server/.venv/
+
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# JVM crash dumps
+hs_err_pid*.log
+replay_pid*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Node (if any)
+node_modules/

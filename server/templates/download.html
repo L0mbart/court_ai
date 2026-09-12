@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Download CourtAI</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <div class="brand">COURTAI</div>
+      <div class="nav-links">
+        <a class="btn" href="/">Dashboard</a>
+        <a class="btn" href="/app">Web App</a>
+      </div>
+    </div>
+
+    <div class="download-hero">
+      <div class="brand">COURTAI</div>
+      <p>Download aplikasi basketball trainer untuk Android atau iOS.</p>
+    </div>
+
+    <div class="download-grid" style="max-width:720px;margin:0 auto">
+      <div class="download-card android">
+        <div class="download-label">Android</div>
+        <p class="muted">Versi {{ version.versionName }} - APK langsung instal</p>
+        {% if has_apk %}
+        <a class="btn btn-primary btn-download" href="/api/apk/download">Download Android</a>
+        {% else %}
+        <span class="btn btn-disabled">Belum tersedia</span>
+        {% endif %}
+      </div>
+      <div class="download-card ios">
+        <div class="download-label">iOS</div>
+        {% if has_ipa %}
+        <p class="muted">IPA siap sideload / TestFlight</p>
+        <a class="btn btn-amber btn-download" href="/api/ipa/download">Download iOS IPA</a>
+        {% elif has_ios %}
+        <p class="muted">Source SwiftUI (.zip) untuk build di Xcode</p>
+        <a class="btn btn-amber btn-download" href="/api/ios/download">Download iOS</a>
+        {% else %}
+        <span class="btn btn-disabled">Belum tersedia</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

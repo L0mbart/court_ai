@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CourtAI</string>
+    <string name="tagline">AI basketball trainer on your phone</string>
+    <string name="start_session">Start Shot Tracker</string>
+    <string name="pound_the_rock">Pound The Rock</string>
+    <string name="drills">Drills</string>
+    <string name="workouts">Workouts</string>
+    <string name="stats">Stats</string>
+    <string name="makes">Makes</string>
+    <string name="misses">Misses</string>
+    <string name="attempts">Attempts</string>
+    <string name="fg_pct">FG%</string>
+    <string name="calibrate_hoop">Drag the rim box onto the hoop, then Start</string>
+    <string name="tracking_hint">Place phone facing the hoop. Orange ball is tracked automatically.</string>
+    <string name="make">MAKE</string>
+    <string name="miss">MISS</string>
+    <string name="start">Start</string>
+    <string name="pause">Pause</string>
+    <string name="finish">Finish</string>
+    <string name="reset">Reset</string>
+    <string name="manual_make">+ Make</string>
+    <string name="manual_miss">+ Miss</string>
+    <string name="camera_permission">Camera permission is required for shot tracking.</string>
+    <string name="session_saved">Session saved</string>
+    <string name="no_sessions">No sessions yet. Start tracking to build your stats.</string>
+    <string name="today">Today</string>
+    <string name="set_name">Set Nama</string>
+    <string name="check_update">Update</string>
+    <string name="sync_server">Sync</string>
+    <string name="server">Server</string>
+</resources>

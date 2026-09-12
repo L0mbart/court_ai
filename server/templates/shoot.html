@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Shot Tracker - CourtAI</title>
+  <link rel="stylesheet" href="/static/css/app.css?v=4" />
+  <style>
+    #rim {
+      position: absolute;
+      border: 3px solid #ffb020;
+      background: rgba(255,176,32,.18);
+      left: 35%; top: 18%; width: 30%; height: 14%;
+      z-index: 5;
+      touch-action: none;
+      cursor: move;
+      box-sizing: border-box;
+      min-width: 48px;
+      min-height: 36px;
+    }
+    #rim .rim-label {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      color: #ffb020;
+      pointer-events: none;
+      text-shadow: 0 1px 4px rgba(0,0,0,.7);
+      white-space: nowrap;
+    }
+    #rim .handle {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: #ffb020;
+      border: 2px solid #0b1220;
+      border-radius: 3px;
+      z-index: 6;
+      box-sizing: border-box;
+    }
+    #rim .handle.nw { left: -8px; top: -8px; cursor: nwse-resize; }
+    #rim .handle.ne { right: -8px; top: -8px; cursor: nesw-resize; }
+    #rim .handle.sw { left: -8px; bottom: -8px; cursor: nesw-resize; }
+    #rim .handle.se { right: -8px; bottom: -8px; cursor: nwse-resize; }
+    #rim .handle.n { left: 50%; top: -8px; margin-left: -8px; cursor: ns-resize; }
+    #rim .handle.s { left: 50%; bottom: -8px; margin-left: -8px; cursor: ns-resize; }
+    #rim .handle.w { left: -8px; top: 50%; margin-top: -8px; cursor: ew-resize; }
+    #rim .handle.e { right: -8px; top: 50%; margin-top: -8px; cursor: ew-resize; }
+  </style>
+</head>
+<body>
+  <div class="train-shell">
+    <div class="train-top">
+      <div class="nav" style="margin:0">
+        <div>
+          <div class="brand" style="font-size:18px">SHOT TRACKER</div>
+          <div class="muted" id="status">Menyalakan kamera...</div>
+        </div>
+        <a class="btn" href="/app">Back</a>
+      </div>
+      <div class="row" style="margin-top:10px;grid-template-columns:1fr auto auto auto">
+        <select id="camSelect" style="margin:0"></select>
+        <button class="btn btn-primary" id="btnCam" type="button">Nyalakan Kamera</button>
+        <button class="btn" id="btnSwitchCam" type="button">Depan/Belakang</button>
+        <button class="btn" id="btnManual" type="button">Manual</button>
+      </div>
+      <div class="hud">
+        <div id="hMake" class="mint">0 MAKE</div>
+        <div id="hMiss" style="color:#ff4d4d">0 MISS</div>
+        <div id="hFg" class="amber">0%</div>
+        <div id="hTime">00:00</div>
+      </div>
+    </div>
+    <div class="stage" id="stage">
+      <video id="video" playsinline webkit-playsinline autoplay muted></video>
+      <canvas id="preview"></canvas>
+      <canvas id="work" style="display:none"></canvas>
+      <canvas class="overlay" id="overlay"></canvas>
+      <div id="camPlaceholder" class="cam-placeholder">Menyiapkan preview kamera...</div>
+      <button type="button" id="btnMirrorFloat" class="btn-mirror-float" style="display:none" title="Mirror kamera">Mirror</button>
+      <div id="rim">
+        <span class="rim-label">RING — drag / resize</span>
+        <div class="handle nw" data-dir="nw"></div>
+        <div class="handle n" data-dir="n"></div>
+        <div class="handle ne" data-dir="ne"></div>
+        <div class="handle e" data-dir="e"></div>
+        <div class="handle se" data-dir="se"></div>
+        <div class="handle s" data-dir="s"></div>
+        <div class="handle sw" data-dir="sw"></div>
+        <div class="handle w" data-dir="w"></div>
+      </div>
+    </div>
+    <div class="train-bottom">
+      <div class="controls">
+        <button class="btn btn-primary" id="btnStart">Start</button>
+        <button class="btn" id="btnMake">+ Make</button>
+        <button class="btn" id="btnMiss">+ Miss</button>
+        <button class="btn btn-amber" id="btnMirror" type="button" style="display:none">Mirror: ON</button>
+        <button class="btn" id="btnFinish">Finish</button>
+      </div>
+    </div>
+  </div>
+  <script src="/static/js/storage.js"></script>
+  <script src="/static/js/tracker.js?v=6"></script>
+  <script src="/static/js/camera.js?v=4"></script>
+  <script>
+    let stream=null, running=false, mirrored=true, raf=0, startedAt=0, timer=null;
+    let makes=0, misses=0, cameraOn=false, stopPreview=null;
+    const filter = new BallTracker.TrackerFilter();
+    const shotEngine = new BallTracker.ShotEngine();
+
+    function showSecureHintIfNeeded() {
+      if (CourtCamera.isSecureOk()) return false;
+      const url = CourtCamera.httpsHintUrl();
+      setPlaceholder(true, "HP butuh HTTPS. Buka: " + url);
+      status.innerHTML = 'Kamera mobile butuh HTTPS. Buka <a href="' + url + '">' + url + "</a>";
+      return true;
+    }
+
+    function syncMirrorBtn() {
+      btnMirror.style.display = cameraOn ? "inline-flex" : "none";
+      btnMirrorFloat.style.display = cameraOn ? "inline-flex" : "none";
+      btnMirror.textContent = mirrored ? "Mirror: ON" : "Mirror: OFF";
+      btnMirrorFloat.textContent = mirrored ? "Mirror ON" : "Mirror OFF";
+      btnMirror.classList.toggle("btn-amber", mirrored);
+      btnMirror.classList.toggle("btn-primary", !mirrored);
+      btnMirrorFloat.classList.toggle("on", mirrored);
+    }
+    function setPlaceholder(show, text) {
+      if (text) camPlaceholder.textContent = text;
+      camPlaceholder.classList.toggle("hidden", !show);
+    }
+
+    async function refreshCams() {
+      try {
+        const devices = await CourtCamera.listVideoInputs();
+        camSelect.innerHTML = "";
+        if (!devices.length) {
+          camSelect.innerHTML = '<option value="">Izinkan kamera dulu</option>';
+          return;
+        }
+        devices.forEach((d, i) => {
+          const opt = document.createElement("option");
+          opt.value = d.deviceId;
+          const risky = CourtCamera.isRiskyLabel(d.label);
+          opt.textContent = (d.label || ("Camera " + (i + 1))) + (risky ? " [BLOKIR]" : "");
+          if (risky) opt.disabled = true;
+          camSelect.appendChild(opt);
+        });
+        const safeId = CourtCamera.pickSafeDeviceId(devices, camSelect.value);
+        if (safeId) camSelect.value = safeId;
+      } catch (e) {
+        status.textContent = "List kamera: " + e.message;
+      }
+    }
+
+    async function openCamera(facingMode) {
+      if (showSecureHintIfNeeded()) return;
+      status.textContent = "Membuka kamera...";
+      setPlaceholder(true, "Meminta izin / menyalakan kamera...");
+      if (stopPreview) { stopPreview(); stopPreview = null; }
+      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      const opts = facingMode ? { facingMode } : undefined;
+      stream = await CourtCamera.openSafe(camSelect.value || undefined, opts);
+      const info = await CourtCamera.attach(video, stream);
+      cameraOn = true;
+      if (CourtCamera.isMobile()) {
+        mirrored = CourtCamera.getFacing() !== "environment";
+      }
+      stopPreview = CourtCamera.startPreviewLoop(video, preview, () => mirrored);
+      syncMirrorBtn();
+      setPlaceholder(false);
+      await refreshCams();
+      if (!info.width) {
+        status.textContent = "Stream aktif tapi frame 0 — coba Depan/Belakang";
+        setPlaceholder(true, "Belum ada frame. Coba Depan/Belakang.");
+      } else {
+        status.textContent = "Live " + info.width + "x" + info.height + " — " + (info.label || CourtCamera.getFacing()) + " — geser/resize RING";
+      }
+    }
+
+    function processSize(vw, vh) {
+      const maxW = 720;
+      if (vw <= maxW) return { w: vw, h: vh };
+      const scale = maxW / vw;
+      return { w: maxW, h: Math.round(vh * scale) };
+    }
+
+    function rimNorm() {
+      const r = rim.getBoundingClientRect();
+      const s = stage.getBoundingClientRect();
+      return {
+        left: (r.left - s.left) / s.width,
+        top: (r.top - s.top) / s.height,
+        right: (r.right - s.left) / s.width,
+        bottom: (r.bottom - s.top) / s.height
+      };
+    }
+
+    function updateHud() {
+      const att = makes + misses;
+      hMake.textContent = makes + " MAKE";
+      hMiss.textContent = misses + " MISS";
+      hFg.textContent = (att ? Math.round(makes * 100 / att) : 0) + "%";
+    }
+
+    function drawBall(ball) {
+      const c = overlay.getContext("2d");
+      const w = stage.clientWidth, h = stage.clientHeight;
+      if (overlay.width !== w || overlay.height !== h) { overlay.width = w; overlay.height = h; }
+      c.clearRect(0,0,overlay.width,overlay.height);
+      if (!ball) return;
+      const x = ball.x * overlay.width, y = ball.y * overlay.height;
+      const r = Math.max(14, ball.radius * Math.min(overlay.width, overlay.height));
+      c.beginPath(); c.arc(x,y,r,0,Math.PI*2);
+      c.fillStyle = ball.predicted ? "rgba(255,176,32,.25)" : "rgba(255,106,0,.35)";
+      c.fill();
+      c.strokeStyle="#ff6a00"; c.lineWidth=3; c.stroke();
+    }
+
+    function flashEvent(ev) {
+      status.textContent = ev === "MAKE" ? "SCORE! Bola masuk ring" : "MISS";
+      status.style.color = ev === "MAKE" ? "var(--mint)" : "#ff4d4d";
+      setTimeout(() => { status.style.color = ""; }, 600);
+    }
+
+    function loop() {
+      if (!running) return;
+      const vw = video.videoWidth, vh = video.videoHeight;
+      if (cameraOn && vw && vh) {
+        const { w, h } = processSize(vw, vh);
+        work.width = w; work.height = h;
+        const ctx = work.getContext("2d", { willReadFrequently: true });
+        if (mirrored) { ctx.save(); ctx.translate(w,0); ctx.scale(-1,1); ctx.drawImage(video,0,0,w,h); ctx.restore(); }
+        else ctx.drawImage(video,0,0,w,h);
+        const raw = BallTracker.detect(ctx, w, h, 3);
+        const ball = filter.update(raw);
+        drawBall(ball);
+        const ev = shotEngine.onBall(ball, rimNorm());
+        if (ev === "MAKE") { makes++; flashEvent(ev); updateHud(); }
+        if (ev === "MISS") { misses++; flashEvent(ev); updateHud(); }
+      }
+      raf = requestAnimationFrame(loop);
+    }
+
+    let drag=null;
+    const RIM_LS = "courtai_rim_box";
+    const MIN_W = 48;
+    const MIN_H = 36;
+
+    function rimRect() {
+      return {
+        left: rim.offsetLeft,
+        top: rim.offsetTop,
+        width: rim.offsetWidth,
+        height: rim.offsetHeight,
+      };
+    }
+
+    function applyRimBox(box) {
+      const sw = stage.clientWidth;
+      const sh = stage.clientHeight;
+      let left = Math.max(0, box.left);
+      let top = Math.max(0, box.top);
+      let width = Math.max(MIN_W, box.width);
+      let height = Math.max(MIN_H, box.height);
+      if (left + width > sw) width = Math.max(MIN_W, sw - left);
+      if (top + height > sh) height = Math.max(MIN_H, sh - top);
+      rim.style.left = left + "px";
+      rim.style.top = top + "px";
+      rim.style.width = width + "px";
+      rim.style.height = height + "px";
+    }
+
+    function saveRim() {
+      const box = rimRect();
+      const sw = Math.max(1, stage.clientWidth);
+      const sh = Math.max(1, stage.clientHeight);
+      localStorage.setItem(RIM_LS, JSON.stringify({
+        left: box.left / sw,
+        top: box.top / sh,
+        width: box.width / sw,
+        height: box.height / sh,
+      }));
+    }
+
+    function loadRim() {
+      try {
+        const raw = localStorage.getItem(RIM_LS);
+        if (!raw) return;
+        const n = JSON.parse(raw);
+        const sw = stage.clientWidth;
+        const sh = stage.clientHeight;
+        applyRimBox({
+          left: (n.left || 0.35) * sw,
+          top: (n.top || 0.18) * sh,
+          width: (n.width || 0.3) * sw,
+          height: (n.height || 0.14) * sh,
+        });
+      } catch (_) {}
+    }
+
+    function clampResize(start, dx, dy, dir) {
+      let { left, top, width, height } = start;
+      const sw = stage.clientWidth;
+      const sh = stage.clientHeight;
+
+      if (dir.includes("e")) width = start.width + dx;
+      if (dir.includes("s")) height = start.height + dy;
+      if (dir.includes("w")) {
+        width = start.width - dx;
+        left = start.left + dx;
+      }
+      if (dir.includes("n")) {
+        height = start.height - dy;
+        top = start.top + dy;
+      }
+
+      if (width < MIN_W) {
+        if (dir.includes("w")) left = start.left + start.width - MIN_W;
+        width = MIN_W;
+      }
+      if (height < MIN_H) {
+        if (dir.includes("n")) top = start.top + start.height - MIN_H;
+        height = MIN_H;
+      }
+
+      left = Math.max(0, Math.min(left, sw - MIN_W));
+      top = Math.max(0, Math.min(top, sh - MIN_H));
+      width = Math.min(width, sw - left);
+      height = Math.min(height, sh - top);
+      return { left, top, width, height };
+    }
+
+    rim.addEventListener("pointerdown", e => {
+      const handle = e.target.closest(".handle");
+      const box = rimRect();
+      if (handle) {
+        drag = {
+          mode: "resize",
+          dir: handle.dataset.dir,
+          x: e.clientX,
+          y: e.clientY,
+          ...box,
+        };
+      } else {
+        drag = {
+          mode: "move",
+          x: e.clientX,
+          y: e.clientY,
+          ...box,
+        };
+      }
+      rim.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    rim.addEventListener("pointermove", e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      if (drag.mode === "move") {
+        applyRimBox({
+          left: drag.left + dx,
+          top: drag.top + dy,
+          width: drag.width,
+          height: drag.height,
+        });
+      } else {
+        applyRimBox(clampResize(drag, dx, dy, drag.dir));
+      }
+    });
+    rim.addEventListener("pointerup", () => {
+      if (drag) saveRim();
+      drag = null;
+    });
+    rim.addEventListener("pointercancel", () => { drag = null; });
+    window.addEventListener("resize", () => loadRim());
+
+    // Convert initial % layout to px once, then restore saved box
+    requestAnimationFrame(() => {
+      const box = rimRect();
+      applyRimBox(box);
+      loadRim();
+    });
+
+    btnCam.onclick = async () => {
+      try { await openCamera(); }
+      catch (e) {
+        if (e.code === "INSECURE_CONTEXT") showSecureHintIfNeeded();
+        else {
+          setPlaceholder(true, "Kamera gagal. Coba Manual.");
+          status.textContent = "Kamera gagal: " + e.message;
+        }
+      }
+    };
+    btnSwitchCam.onclick = async () => {
+      try {
+        const next = CourtCamera.getFacing() === "user" ? "environment" : "user";
+        CourtCamera.setFacing(next);
+        await openCamera(next);
+      } catch (e) {
+        if (e.code === "INSECURE_CONTEXT") showSecureHintIfNeeded();
+        else status.textContent = "Ganti kamera gagal: " + e.message;
+      }
+    };
+    btnManual.onclick = () => {
+      cameraOn = false;
+      if (stopPreview) { stopPreview(); stopPreview = null; }
+      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      video.srcObject = null;
+      syncMirrorBtn();
+      setPlaceholder(true, "Manual only — tanpa kamera");
+      status.textContent = "Manual only: Start lalu + Make / + Miss.";
+    };
+    btnMirror.onclick = () => {
+      if (!cameraOn) return;
+      mirrored = !mirrored;
+      syncMirrorBtn();
+      status.textContent = mirrored ? "Mirror ON" : "Mirror OFF";
+    };
+    btnMirrorFloat.onclick = () => btnMirror.click();
+    btnStart.onclick = () => {
+      if (running) {
+        running=false; btnStart.textContent="Start"; clearInterval(timer); cancelAnimationFrame(raf);
+        status.textContent="Paused";
+        overlay.getContext("2d").clearRect(0,0,overlay.width,overlay.height);
+        return;
+      }
+      running=true; startedAt=Date.now(); btnStart.textContent="Pause";
+      filter.reset(); shotEngine.reset();
+      status.textContent= cameraOn ? "Tracking... tembak ke kotak RING" : "Manual mode";
+      clearInterval(timer);
+      timer=setInterval(()=>{
+        const s=Math.floor((Date.now()-startedAt)/1000);
+        hTime.textContent=String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
+      },200);
+      cancelAnimationFrame(raf); loop();
+    };
+    btnMake.onclick = () => { if(!running) return; makes++; updateHud(); };
+    btnMiss.onclick = () => { if(!running) return; misses++; updateHud(); };
+    btnFinish.onclick = () => {
+      running=false; clearInterval(timer); cancelAnimationFrame(raf);
+      CourtStorage.save({
+        title: "Web Shot Session",
+        drillId: "freestyle",
+        makes, misses,
+        durationMs: Math.max(1000, Date.now() - (startedAt||Date.now()))
+      });
+      status.textContent = "Saved " + makes + "/" + (makes+misses);
+      location.href = "/app";
+    };
+
+    updateHud();
+    syncMirrorBtn();
+    (async () => {
+      if (showSecureHintIfNeeded()) return;
+      await refreshCams();
+      try { await openCamera(); }
+      catch (e) {
+        if (e.code === "INSECURE_CONTEXT") showSecureHintIfNeeded();
+        else {
+          setPlaceholder(true, "Klik Nyalakan Kamera");
+          status.textContent = "Kamera belum aktif: " + e.message;
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

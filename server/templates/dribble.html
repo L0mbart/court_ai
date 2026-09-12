@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pound The Rock - CourtAI</title>
+  <link rel="stylesheet" href="/static/css/app.css?v=4" />
+</head>
+<body>
+  <div class="train-shell">
+    <div class="train-top">
+      <div class="nav" style="margin:0">
+        <div>
+          <div class="brand" style="font-size:18px">POUND THE ROCK</div>
+          <div class="muted" id="status">Menyalakan kamera...</div>
+        </div>
+        <a class="btn" href="/app">Back</a>
+      </div>
+      <div class="row" style="margin-top:10px;grid-template-columns:1fr auto auto auto">
+        <select id="camSelect" style="margin:0"></select>
+        <button class="btn btn-primary" id="btnCam" type="button">Nyalakan Kamera</button>
+        <button class="btn" id="btnSwitchCam" type="button">Depan/Belakang</button>
+        <button class="btn" id="btnManual" type="button">Manual</button>
+      </div>
+      <div class="hud">
+        <div id="hDribble" class="mint">0\nDRIBBLES</div>
+        <div id="hCombo" class="orange">0\nCOMBO</div>
+        <div id="hSide">—\nSIDE</div>
+        <div id="hTime" class="amber">0:30\nTIME</div>
+      </div>
+    </div>
+    <div class="stage" id="stage">
+      <video id="video" playsinline webkit-playsinline autoplay muted></video>
+      <canvas id="preview"></canvas>
+      <canvas id="work" style="display:none"></canvas>
+      <canvas class="overlay" id="overlay"></canvas>
+      <div id="camPlaceholder" class="cam-placeholder">Menyiapkan preview kamera...</div>
+      <button type="button" id="btnMirrorFloat" class="btn-mirror-float" style="display:none" title="Mirror kamera">Mirror</button>
+      <div class="score-big" id="score">0</div>
+    </div>
+    <div class="train-bottom">
+      <div class="controls">
+        <button class="btn btn-primary" id="btnStart">Start</button>
+        <button class="btn btn-amber" id="btnPlus" type="button">+ Dribble</button>
+        <button class="btn btn-amber" id="btnMirror" type="button" style="display:none">Mirror: ON</button>
+        <button class="btn" id="btnFinish">Finish</button>
+      </div>
+    </div>
+  </div>
+  <script src="/static/js/storage.js"></script>
+  <script src="/static/js/tracker.js?v=6"></script>
+  <script src="/static/js/camera.js?v=4"></script>
+  <script>
+    const engine = new BallTracker.DribbleEngine();
+    const filter = new BallTracker.TrackerFilter();
+    let stream = null, running = false, mirrored = true, raf = 0, startedAt = 0, timer = null;
+    let cameraOn = false, stopPreview = null;
+    const duration = 30;
+
+    function showSecureHintIfNeeded() {
+      if (CourtCamera.isSecureOk()) return false;
+      const url = CourtCamera.httpsHintUrl();
+      setPlaceholder(true, "HP butuh HTTPS. Buka: " + url);
+      status.innerHTML = 'Kamera mobile butuh HTTPS. Buka <a href="' + url + '">' + url + "</a> lalu izinkan kamera.";
+      return true;
+    }
+
+    function syncMirrorBtn() {
+      btnMirror.style.display = cameraOn ? "inline-flex" : "none";
+      btnMirrorFloat.style.display = cameraOn ? "inline-flex" : "none";
+      btnMirror.textContent = mirrored ? "Mirror: ON" : "Mirror: OFF";
+      btnMirrorFloat.textContent = mirrored ? "Mirror ON" : "Mirror OFF";
+      btnMirror.classList.toggle("btn-amber", mirrored);
+      btnMirror.classList.toggle("btn-primary", !mirrored);
+      btnMirrorFloat.classList.toggle("on", mirrored);
+    }
+
+    function setPlaceholder(show, text) {
+      if (text) camPlaceholder.textContent = text;
+      camPlaceholder.classList.toggle("hidden", !show);
+    }
+
+    async function refreshCams() {
+      try {
+        const devices = await CourtCamera.listVideoInputs();
+        camSelect.innerHTML = "";
+        if (!devices.length) {
+          camSelect.innerHTML = '<option value="">Izinkan kamera dulu</option>';
+          return;
+        }
+        devices.forEach((d, i) => {
+          const opt = document.createElement("option");
+          opt.value = d.deviceId;
+          const risky = CourtCamera.isRiskyLabel(d.label);
+          opt.textContent = (d.label || ("Camera " + (i + 1))) + (risky ? " [BLOKIR]" : "");
+          if (risky) opt.disabled = true;
+          camSelect.appendChild(opt);
+        });
+        const safeId = CourtCamera.pickSafeDeviceId(devices, camSelect.value);
+        if (safeId) camSelect.value = safeId;
+      } catch (e) {
+        status.textContent = "List kamera: " + e.message;
+      }
+    }
+
+    async function openCamera(facingMode) {
+      if (showSecureHintIfNeeded()) return;
+      status.textContent = "Membuka kamera...";
+      setPlaceholder(true, "Meminta izin / menyalakan kamera...");
+      if (stopPreview) { stopPreview(); stopPreview = null; }
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      const opts = facingMode ? { facingMode } : undefined;
+      stream = await CourtCamera.openSafe(camSelect.value || undefined, opts);
+      const info = await CourtCamera.attach(video, stream);
+      cameraOn = true;
+      // Front cam usually wants mirror on; back cam usually off
+      if (CourtCamera.isMobile()) {
+        const facing = CourtCamera.getFacing();
+        mirrored = facing !== "environment";
+      }
+      stopPreview = CourtCamera.startPreviewLoop(video, preview, () => mirrored);
+      syncMirrorBtn();
+      setPlaceholder(false);
+      await refreshCams();
+      if (!info.width) {
+        status.textContent = "Stream aktif tapi frame masih 0 — coba Depan/Belakang atau Nyalakan Kamera";
+        setPlaceholder(true, "Kamera hidup tapi belum ada frame. Coba Depan/Belakang.");
+      } else {
+        status.textContent = "Live " + info.width + "x" + info.height + " — " + (info.label || CourtCamera.getFacing());
+      }
+    }
+
+    function processSize(vw, vh) {
+      const maxW = 720;
+      if (vw <= maxW) return { w: vw, h: vh };
+      const scale = maxW / vw;
+      return { w: maxW, h: Math.round(vh * scale) };
+    }
+
+    function drawBall(ball) {
+      const c = overlay.getContext("2d");
+      const w = stage.clientWidth, h = stage.clientHeight;
+      if (overlay.width !== w || overlay.height !== h) {
+        overlay.width = w; overlay.height = h;
+      }
+      c.clearRect(0, 0, overlay.width, overlay.height);
+      if (!ball) return;
+      const x = ball.x * overlay.width;
+      const y = ball.y * overlay.height;
+      const r = Math.max(14, ball.radius * Math.min(overlay.width, overlay.height));
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2);
+      c.fillStyle = ball.predicted ? "rgba(255,176,32,.25)" : "rgba(255,106,0,.35)";
+      c.fill();
+      c.strokeStyle = "#ff6a00"; c.lineWidth = 3; c.stroke();
+    }
+
+    function loop() {
+      if (!running) return;
+      const vw = video.videoWidth, vh = video.videoHeight;
+      if (cameraOn && vw && vh) {
+        const { w, h } = processSize(vw, vh);
+        work.width = w; work.height = h;
+        const ctx = work.getContext("2d", { willReadFrequently: true });
+        if (mirrored) {
+          ctx.save();
+          ctx.translate(w, 0); ctx.scale(-1, 1);
+          ctx.drawImage(video, 0, 0, w, h);
+          ctx.restore();
+        } else {
+          ctx.drawImage(video, 0, 0, w, h);
+        }
+        const raw = BallTracker.detect(ctx, w, h, 3);
+        const ball = filter.update(raw);
+        drawBall(ball);
+        if (engine.onBall(ball)) updateHud();
+      }
+      raf = requestAnimationFrame(loop);
+    }
+
+    function updateHud() {
+      score.textContent = engine.score;
+      hDribble.textContent = engine.dribbles + "\nDRIBBLES";
+      hCombo.textContent = engine.combo + "\nCOMBO";
+      hSide.textContent = engine.lastSide + "\nL" + engine.leftCount + "/R" + engine.rightCount;
+    }
+
+    function tick() {
+      const left = Math.max(0, duration - Math.floor((Date.now() - startedAt) / 1000));
+      hTime.textContent = "0:" + String(left).padStart(2, "0") + "\nTIME";
+      if (left <= 0) finish();
+    }
+
+    function start() {
+      engine.reset(); filter.reset(); updateHud();
+      running = true; startedAt = Date.now();
+      btnStart.textContent = "Pause";
+      status.textContent = cameraOn ? "Pound it! (auto-track)" : "Manual: tap + Dribble";
+      clearInterval(timer); timer = setInterval(tick, 200);
+      cancelAnimationFrame(raf); loop();
+    }
+
+    function pause() {
+      running = false; btnStart.textContent = "Start";
+      status.textContent = "Paused";
+      clearInterval(timer); cancelAnimationFrame(raf);
+      const c = overlay.getContext("2d");
+      c.clearRect(0, 0, overlay.width, overlay.height);
+    }
+
+    function finish() {
+      const wasRunning = startedAt > 0;
+      pause();
+      const durationMs = wasRunning ? Math.max(1000, Date.now() - startedAt) : 1000;
+      CourtStorage.save({
+        title: "Pound The Rock (" + engine.score + " pts)",
+        drillId: "pound_the_rock",
+        makes: engine.dribbles,
+        misses: 0,
+        durationMs
+      });
+      status.textContent = "Saved " + engine.dribbles + " dribbles - " + engine.score + " pts";
+      startedAt = 0;
+    }
+
+    btnCam.onclick = async () => {
+      try { await openCamera(); }
+      catch (e) {
+        if (e.code === "INSECURE_CONTEXT") showSecureHintIfNeeded();
+        else {
+          setPlaceholder(true, "Kamera gagal. Coba Manual atau izinkan kamera di browser.");
+          status.textContent = "Kamera gagal: " + e.message;
+        }
+      }
+    };
+    btnSwitchCam.onclick = async () => {
+      try {
+        const next = CourtCamera.getFacing() === "user" ? "environment" : "user";
+        CourtCamera.setFacing(next);
+        await openCamera(next);
+      } catch (e) {
+        if (e.code === "INSECURE_CONTEXT") showSecureHintIfNeeded();
+        else status.textContent = "Ganti kamera gagal: " + e.message;
+      }
+    };
+    btnManual.onclick = () => {
+      cameraOn = false;
+      if (stopPreview) { stopPreview(); stopPreview = null; }
+      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      video.srcObject = null;
+      syncMirrorBtn();
+      setPlaceholder(true, "Manual only — tanpa kamera");
+      status.textContent = "Manual only. Start lalu tap + Dribble.";
+    };
+    btnMirror.onclick = () => {
+      if (!cameraOn) return;
+      mirrored = !mirrored;
+      syncMirrorBtn();
+      status.textContent = mirrored ? "Mirror ON" : "Mirror OFF";
+    };
+    btnMirrorFloat.onclick = () => btnMirror.click();
+    btnPlus.onclick = () => {
+      if (!running) return;
+      engine.dribbles += 1;
+      engine.combo += 1;
+      engine.score += 10 + Math.min(20, engine.combo);
+      updateHud();
+    };
+    btnStart.onclick = () => running ? pause() : start();
+    btnFinish.onclick = finish;
+    syncMirrorBtn();
+
+    (async () => {
+      if (showSecureHintIfNeeded()) return;
+      await refreshCams();
+      try { await openCamera(); }
+      catch (e) {
+        if (e.code === "INSECURE_CONTEXT") showSecureHintIfNeeded();
+        else {
+          setPlaceholder(true, "Klik Nyalakan Kamera");
+          status.textContent = "Kamera belum aktif: " + e.message;
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

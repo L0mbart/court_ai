@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="court_ink">#0B1220</color>
+    <color name="court_navy">#132238</color>
+    <color name="court_orange">#FF6A00</color>
+    <color name="court_amber">#FFB020</color>
+    <color name="court_cream">#F7F1E8</color>
+    <color name="court_mint">#2DD4A8</color>
+    <color name="court_red">#FF4D4D</color>
+    <color name="court_line">#2A3B55</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="overlay_dark">#990B1220</color>
+</resources>
