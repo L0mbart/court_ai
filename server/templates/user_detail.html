@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ user.userName }} - CourtAI</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <div>
+        <div class="brand">{{ user.userName }}</div>
+        <div class="muted">{{ user.userId }}</div>
+      </div>
+      <a class="btn" href="/">← Dashboard</a>
+      <a class="btn" href="/logout">Logout</a>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h3>Sessions</h3><div class="value">{{ user.sessions }}</div></div>
+      <div class="card"><h3>FG%</h3><div class="value amber">{% if user.fgPercent is not none %}{{ user.fgPercent }}%{% else %}—{% endif %}</div></div>
+      <div class="card"><h3>Makes</h3><div class="value mint">{{ user.makes }}</div></div>
+      <div class="card"><h3>Dribbles</h3><div class="value orange">{{ user.dribbles }}</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>All activities</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Activity</th>
+            <th>Result</th>
+            <th>Duration</th>
+            <th>Device</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sessions %}
+          <tr>
+            <td class="muted">{{ s.syncedAt }}</td>
+            <td><span class="pill {{ s.activityType }}">{{ s.activityType }}</span> {{ s.activityLabel }}</td>
+            <td>
+              {% if s.activityType == 'dribble' %}
+                {{ s.makes }} dribbles{% if s.score is not none %} - {{ s.score }} pts{% endif %}
+              {% else %}
+                {{ s.makes }}/{{ s.attempts }}{% if s.fgPercent is not none %} - {{ s.fgPercent }}%{% endif %}
+              {% endif %}
+            </td>
+            <td>{{ (s.durationMs / 1000)|int }}s</td>
+            <td class="muted">{{ s.deviceId }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="muted">Tidak ada sesi.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>
+

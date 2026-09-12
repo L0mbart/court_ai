@@ -1,0 +1,24 @@
+[
+  {
+    "id": "01db9fbf",
+    "name": "Efer Kano",
+    "email": "efer.kano@gmail.com",
+    "phone": "087883347555",
+    "passwordHash": "78bade2626dd7a95805dec366c3a01740a379c60e468ea84ede86fe4bbb1955e",
+    "salt": "2f3cc78f810e133a7a68c6234cc4024e",
+    "active": true,
+    "createdAt": "2026-09-10T03:22:25.632272+00:00",
+    "updatedAt": "2026-09-10T03:22:25.632272+00:00"
+  },
+  {
+    "id": "a3110da0",
+    "name": "demo",
+    "email": "demo@demo.demo",
+    "phone": "123123123123123",
+    "passwordHash": "de304567d5f6fb80154ea96733b2a42ce4ae525fdb6b3bbba64ef20835a2f92f",
+    "salt": "e7e139d61cb8c5179437b04005d4b7ae",
+    "active": true,
+    "createdAt": "2026-09-12T07:12:58.106387+00:00",
+    "updatedAt": "2026-09-12T07:13:31.022246+00:00"
+  }
+]

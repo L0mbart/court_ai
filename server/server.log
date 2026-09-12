@@ -1,0 +1,15 @@
+
+[CourtAI] Default admin dibuat.
+[CourtAI] Username : admin
+[CourtAI] Password : aRD5SbZwwCPopjde
+[CourtAI] Disimpan di: D:\Efer Kano\Documents\OneDrive\Gawean\Proyek\Basket Ball APPS\server\data\ADMIN_LOGIN.txt
+
+INFO:     127.0.0.1:20359 - "GET / HTTP/1.1" 303 See Other
+INFO:     127.0.0.1:20360 - "POST /login HTTP/1.1" 303 See Other
+INFO:     127.0.0.1:20360 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:20360 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:20361 - "GET /app HTTP/1.1" 200 OK
+INFO:     127.0.0.1:20362 - "GET /api/version HTTP/1.1" 200 OK
+INFO:     172.16.3.68:49244 - "POST /api/sessions/sync HTTP/1.1" 200 OK
+INFO:     172.16.3.68:49256 - "GET /api/version HTTP/1.1" 200 OK
+INFO:     172.16.3.68:49256 - "GET /api/version HTTP/1.1" 200 OK

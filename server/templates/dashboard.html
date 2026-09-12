@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CourtAI Admin Dashboard</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <div>
+        <div class="brand">COURTAI ADMIN</div>
+        <div class="muted">Live aktivitas semua user dari APK & web</div>
+      </div>
+      <div class="nav-links">
+        <a class="btn" href="/download">Download App</a>
+        <a class="btn" href="/accounts">Kelola User</a>
+        <a class="btn" href="/app">Web App</a>
+        <button class="btn" id="btnRefresh" type="button">Refresh</button>
+        <a class="btn btn-primary" href="#publish">Publish</a>
+        <a class="btn" href="/logout">Logout</a>
+      </div>
+    </div>
+
+    {% if request.query_params.get('uploaded') %}
+    <div class="flash">APK berhasil diupload.</div>
+    {% endif %}
+    {% if request.query_params.get('uploaded_ipa') %}
+    <div class="flash">IPA berhasil diupload.</div>
+    {% endif %}
+    {% if request.query_params.get('cleared') %}
+    <div class="flash">Semua sesi dihapus. Dashboard mulai dari 0.</div>
+    {% endif %}
+
+    <div class="panel download-panel" id="downloads">
+      <div class="panel-head">
+        <h2>Download Aplikasi</h2>
+        <span class="muted">v{{ version.versionName }} (code {{ version.versionCode }})</span>
+      </div>
+      <div class="download-grid">
+        <div class="download-card android">
+          <div class="download-label">Android</div>
+          <p class="muted">APK siap instal di HP Android. Aktifkan "Install unknown apps" jika diminta.</p>
+          {% if has_apk %}
+          <a class="btn btn-primary btn-download" href="/api/apk/download">Download Android APK</a>
+          {% else %}
+          <span class="btn btn-disabled">APK belum tersedia</span>
+          {% endif %}
+        </div>
+        <div class="download-card ios">
+          <div class="download-label">iOS</div>
+          {% if has_ipa %}
+          <p class="muted">IPA siap diinstal (butuh perangkat terdaftar / TestFlight / sideload).</p>
+          <a class="btn btn-amber btn-download" href="/api/ipa/download">Download iOS IPA</a>
+          {% elif has_ios %}
+          <p class="muted">Source SwiftUI untuk dibuild di Mac/Xcode. IPA belum diupload.</p>
+          <a class="btn btn-amber btn-download" href="/api/ios/download">Download iOS Source (.zip)</a>
+          {% else %}
+          <span class="btn btn-disabled">iOS belum tersedia</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="grid" id="summaryGrid">
+      <div class="card"><h3>Users</h3><div class="value orange" id="sUsers">{{ user_count }}</div></div>
+      <div class="card"><h3>Sessions</h3><div class="value" id="sSessions">{{ session_count }}</div></div>
+      <div class="card"><h3>Shoot FG%</h3><div class="value amber" id="sFg">{% if fg is not none %}{{ fg }}%{% else %}—{% endif %}</div></div>
+      <div class="card"><h3>Total Dribbles</h3><div class="value mint" id="sDribbles">{{ total_dribbles }}</div></div>
+    </div>
+
+    <div class="panel" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0 0 4px">Reset aktivitas</h2>
+        <p class="muted" style="margin:0">Hapus semua sesi shoot/dribble di server. Akun user tidak ikut terhapus.</p>
+      </div>
+      <form id="formClearSessions" action="/dashboard/clear-sessions" method="post" style="margin:0">
+        <button class="btn" type="submit" id="btnClearSessions" style="border-color:#ff4d4d;color:#ff4d4d">
+          Hapus semua sesi
+        </button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Users</h2>
+        <span class="muted">Auto-refresh tiap 5 detik</span>
+      </div>
+      <div id="usersTableWrap">
+        {% if users %}
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Shoot</th>
+              <th>FG%</th>
+              <th>Dribble</th>
+              <th>Score</th>
+              <th>Last activity</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="usersBody">
+            {% for u in users %}
+            <tr>
+              <td>
+                <strong>{{ u.userName }}</strong>
+                <div class="muted">{{ u.userId }} - {{ u.devices|join(', ') }}</div>
+              </td>
+              <td>{{ u.makes }}/{{ u.attempts }} <span class="muted">({{ u.shoots }} sesi)</span></td>
+              <td class="amber">{% if u.fgPercent is not none %}{{ u.fgPercent }}%{% else %}—{% endif %}</td>
+              <td class="mint">{{ u.dribbles }} <span class="muted">({{ u.dribbles_sessions }} sesi)</span></td>
+              <td>{{ u.score }}</td>
+              <td>
+                <div>{{ u.lastLabel }}</div>
+                <div class="muted">{{ u.lastActivity }}</div>
+              </td>
+              <td><a class="btn" href="/users/{{ u.userId }}">Detail</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="muted" id="usersEmpty">Belum ada aktivitas. Minta user set nama di APK (tombol Server), isi URL server, lalu main Shoot/Dribble. Session otomatis masuk ke sini.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Live activity feed</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>User</th>
+            <th>Activity</th>
+            <th>Result</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody id="feedBody">
+          {% for s in feed %}
+          <tr>
+            <td class="muted">{{ s.syncedAt }}</td>
+            <td><strong>{{ s.userName }}</strong></td>
+            <td>
+              <span class="pill {{ s.activityType }}">{{ s.activityType }}</span>
+              {{ s.activityLabel }}
+            </td>
+            <td>
+              {% if s.activityType == 'dribble' %}
+                {{ s.makes }} dribbles{% if s.score is not none %} - {{ s.score }} pts{% endif %}
+              {% else %}
+                {{ s.makes }}/{{ s.attempts }}
+                {% if s.fgPercent is not none %}- {{ s.fgPercent }}% FG{% endif %}
+              {% endif %}
+            </td>
+            <td class="muted">{{ s.source }} - {{ s.deviceId }}</td>
+          </tr>
+          {% else %}
+          <tr id="feedEmpty"><td colspan="5" class="muted">Belum ada feed.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel" id="publish">
+      <h2>Publish Update</h2>
+      <div class="download-grid">
+        <div>
+          <h3 style="margin-top:0">Android APK</h3>
+          <form action="/dashboard/upload" method="post" enctype="multipart/form-data">
+            <div class="row">
+              <div>
+                <label>Version Code</label>
+                <input type="number" name="versionCode" min="1" value="{{ version.versionCode + 1 }}" required />
+              </div>
+              <div>
+                <label>Version Name</label>
+                <input type="text" name="versionName" value="1.1.{{ version.versionCode }}" required />
+              </div>
+            </div>
+            <label>Changelog</label>
+            <textarea name="changelog">{{ version.changelog }}</textarea>
+            <label>File APK</label>
+            <input type="file" name="apk" accept=".apk" required />
+            <label class="check"><input type="checkbox" name="forceUpdate" /> Force update</label>
+            <div style="margin-top:16px">
+              <button class="btn btn-primary" type="submit">Upload & Publish APK</button>
+              {% if has_apk %}<a class="btn" href="/api/apk/download">Download current APK</a>{% endif %}
+            </div>
+          </form>
+        </div>
+        <div>
+          <h3 style="margin-top:0">iOS IPA (opsional)</h3>
+          <p class="muted">Setelah build di Mac, upload file .ipa di sini agar tombol Download iOS memakai IPA.</p>
+          <form action="/dashboard/upload-ipa" method="post" enctype="multipart/form-data">
+            <label>Version Name</label>
+            <input type="text" name="versionName" value="{{ version.versionName }}" />
+            <label>File IPA</label>
+            <input type="file" name="ipa" accept=".ipa" required />
+            <div style="margin-top:16px">
+              <button class="btn btn-amber" type="submit">Upload IPA</button>
+              {% if has_ipa %}<a class="btn" href="/api/ipa/download">Download IPA</a>
+              {% elif has_ios %}<a class="btn" href="/api/ios/download">Download iOS source</a>{% endif %}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    function fmtFg(v) { return v == null ? "—" : v + "%"; }
+    function render(data) {
+      sUsers.textContent = data.user_count;
+      sSessions.textContent = data.session_count;
+      sFg.textContent = fmtFg(data.fg);
+      sDribbles.textContent = data.total_dribbles;
+
+      const usersBody = document.getElementById("usersBody");
+      const wrap = document.getElementById("usersTableWrap");
+      if (!data.users.length) {
+        wrap.innerHTML = '<p class="muted">Belum ada aktivitas user.</p>';
+      } else if (usersBody) {
+        usersBody.innerHTML = data.users.map(u => `
+          <tr>
+            <td><strong>${u.userName}</strong><div class="muted">${u.userId} - ${(u.devices||[]).join(", ")}</div></td>
+            <td>${u.makes}/${u.attempts} <span class="muted">(${u.shoots} sesi)</span></td>
+            <td class="amber">${fmtFg(u.fgPercent)}</td>
+            <td class="mint">${u.dribbles} <span class="muted">(${u.dribbles_sessions} sesi)</span></td>
+            <td>${u.score}</td>
+            <td><div>${u.lastLabel||"—"}</div><div class="muted">${u.lastActivity||""}</div></td>
+            <td><a class="btn" href="/users/${u.userId}">Detail</a></td>
+          </tr>`).join("");
+      } else {
+        location.reload();
+      }
+
+      feedBody.innerHTML = data.feed.length ? data.feed.map(s => `
+        <tr>
+          <td class="muted">${s.syncedAt||""}</td>
+          <td><strong>${s.userName||"Unknown"}</strong></td>
+          <td><span class="pill ${s.activityType}">${s.activityType}</span> ${s.activityLabel||s.title||""}</td>
+          <td>${s.activityType === "dribble"
+            ? `${s.makes} dribbles${s.score!=null?" - "+s.score+" pts":""}`
+            : `${s.makes}/${s.attempts}${s.fgPercent!=null?" - "+s.fgPercent+"% FG":""}`}</td>
+          <td class="muted">${s.source||""} - ${s.deviceId||""}</td>
+        </tr>`).join("") : '<tr><td colspan="5" class="muted">Belum ada feed.</td></tr>';
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch("/api/activity");
+        render(await res.json());
+      } catch (e) {}
+    }
+    btnRefresh.onclick = refresh;
+    setInterval(refresh, 5000);
+
+    document.getElementById("formClearSessions").addEventListener("submit", (e) => {
+      const ok = confirm(
+        "Hapus SEMUA sesi di dashboard?\n\n" +
+        "Users, FG%, dribbles, dan feed akan kembali ke 0.\n" +
+        "Akun login user tidak dihapus.\n\nLanjut?"
+      );
+      if (!ok) e.preventDefault();
+    });
+  </script>
+</body>
+</html>
+

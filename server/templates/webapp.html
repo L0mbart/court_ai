@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CourtAI Web</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <div class="brand">COURTAI</div>
+      <div class="nav-links">
+        <a class="btn" href="/download">Download App</a>
+        <a class="btn" href="/">Dashboard</a>
+      </div>
+    </div>
+    <p class="muted">Versi web untuk latihan cepat di browser. Atau download app native di bawah.</p>
+
+    <div class="flash" style="border-color:var(--amber);color:var(--amber);background:#2a2410">
+      <strong>Kamera di HP (web):</strong> browser mobile hanya izinkan kamera lewat
+      <strong>HTTPS</strong>. Di HP buka
+      <code>https://IP-PC:8443/app</code>
+      (contoh <code>https://172.16.3.51:8443/app</code>), terima peringatan sertifikat,
+      lalu izinkan kamera. Jalankan <code>server\start-both.bat</code> di PC.
+    </div>
+    <div class="flash" style="border-color:var(--mint);color:var(--mint);background:#1b3a2f">
+      Di laptop: kamera bisa lewat HTTP/HTTPS. Klik <strong>Nyalakan Kamera</strong> jika perlu.
+      Tombol <strong>Manual</strong> tetap tersedia tanpa kamera.
+    </div>
+
+    <div class="panel download-panel">
+      <h2>Download App</h2>
+      <div class="download-grid">
+        <a class="btn btn-primary btn-download" href="/api/apk/download">Download Android</a>
+        <a class="btn btn-amber btn-download" href="/api/ios/download">Download iOS</a>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Start training</h2>
+      <div class="controls" style="margin-top:12px">
+        <a class="btn btn-amber" href="/app/dribble">Pound The Rock</a>
+        <a class="btn btn-primary" href="/app/shoot">Shot Tracker</a>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Local stats (browser)</h2>
+      <div class="grid" style="margin:0">
+        <div class="card"><h3>Sessions</h3><div class="value" id="sSessions">0</div></div>
+        <div class="card"><h3>Makes/Dribbles</h3><div class="value mint" id="sMakes">0</div></div>
+        <div class="card"><h3>Attempts</h3><div class="value" id="sAttempts">0</div></div>
+        <div class="card"><h3>FG%</h3><div class="value amber" id="sFg">—</div></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn" id="btnSync">Sync ke dashboard server</button>
+        <button class="btn" id="btnClearLocal" style="border-color:#ff4d4d;color:#ff4d4d">Hapus stats lokal</button>
+        <span class="muted" id="syncMsg"></span>
+      </div>
+    </div>
+  </div>
+  <script src="/static/js/storage.js"></script>
+  <script>
+    function renderLocal() {
+      const stats = CourtStorage.summary();
+      sSessions.textContent = stats.sessions;
+      sMakes.textContent = stats.makes;
+      sAttempts.textContent = stats.attempts;
+      sFg.textContent = stats.fg == null ? "—" : Math.round(stats.fg) + "%";
+    }
+    renderLocal();
+    btnSync.onclick = async () => {
+      syncMsg.textContent = "Syncing...";
+      try {
+        await CourtStorage.syncToServer();
+        syncMsg.textContent = "Synced.";
+      } catch (e) {
+        syncMsg.textContent = "Gagal: " + e.message;
+      }
+    };
+    btnClearLocal.onclick = () => {
+      if (!confirm("Hapus semua sesi lokal di browser ini?")) return;
+      CourtStorage.clear();
+      renderLocal();
+      syncMsg.textContent = "Stats lokal dikosongkan.";
+    };
+  </script>
+</body>
+</html>
