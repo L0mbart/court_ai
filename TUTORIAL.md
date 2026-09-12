@@ -1,5 +1,5 @@
 # Tutorial CourtAI — Basketball Training App
-### Untuk siswa Kelas 3 SMP
+### Untuk siswa 
 
 Halo! Tutorial ini menjelaskan cara menjalankan dan memahami aplikasi **CourtAI**.  
 Bahasanya dibuat sederhana, dan ada contoh kode yang bisa kamu baca pelan-pelan.
