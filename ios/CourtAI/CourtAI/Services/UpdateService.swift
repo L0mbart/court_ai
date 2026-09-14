@@ -3,8 +3,8 @@ import UserNotifications
 import UIKit
 
 enum AppVersion {
-    static let code = 5
-    static let name = "1.1.3"
+    static let code = 6
+    static let name = "1.1.4"
 }
 
 enum UpdateService {

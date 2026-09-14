@@ -2,7 +2,7 @@
 
 Native SwiftUI app (login, biometrik, shot tracker, Pound The Rock) yang memakai **server dashboard yang sama** dengan Android.
 
-**Versi saat ini:** `1.1.3` (build `5`)
+**Versi saat ini:** `1.1.4` (build `6`)
 
 ## Syarat
 - Mac dengan **Xcode 15+**

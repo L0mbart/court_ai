@@ -150,8 +150,8 @@ def ensure_release_files() -> dict:
             dest_name = "courtai-android-latest.apk"
             shutil.copy2(src, UPLOAD_DIR / dest_name)
             version["apkFile"] = dest_name
-            version["versionName"] = version.get("versionName") or "1.1.3"
-            version["versionCode"] = int(version.get("versionCode") or 5)
+            version["versionName"] = version.get("versionName") or "1.1.4"
+            version["versionCode"] = int(version.get("versionCode") or 6)
             version["updatedAt"] = _now()
             changed = True
 
