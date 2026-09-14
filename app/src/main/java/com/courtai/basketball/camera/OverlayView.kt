@@ -13,10 +13,30 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
+/**
+ * ============================================================================
+ * OverlayView.kt — lapisan gambar di atas preview kamera
+ * ============================================================================
+ *
+ * PERAN FILE:
+ * View transparan yang digambar di atas video kamera.
+ * Menampilkan: kotak rim (bisa digeser), lingkaran bola, teks panduan.
+ *
+ * ALUR SINGKAT:
+ * 1. ShotTracker set posisi bola + tampilkan rim.
+ * 2. onDraw() menggambar kotak oranye & lingkaran bola.
+ * 3. User drag: MOVE = geser kotak; RESIZE_BR = ubah ukuran dari pojok kanan-bawah.
+ * 4. Engine membaca rim via rimNormalized() (nilai 0..1).
+ *
+ * Analogi: seperti stiker transparan di atas video —
+ * kita gambar “lubang ring” dan “bola” di atasnya.
+ */
 class OverlayView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
+
+    // ========== CAT (KUAS) GAMBAR ==========
 
     private val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -41,25 +61,30 @@ class OverlayView @JvmOverloads constructor(
         textSize = 36f
     }
 
-    /** Normalized rim box in view coordinates (0..1). */
+    // ========== STATE YANG DITAMPILKAN ==========
+
+    /** Kotak rim dinormalisasi 0..1 (kiri, atas, kanan, bawah). */
     var rim = RectF(0.35f, 0.18f, 0.65f, 0.30f)
         set(value) {
             field = value
             invalidate()
         }
 
+    /** Posisi bola terdeteksi; null = tidak digambar. */
     var ball: BallPoint? = null
         set(value) {
             field = value
             invalidate()
         }
 
+    /** Teks “Drag rim box…” — biasanya hanya saat belum tracking. */
     var showGuide: Boolean = true
         set(value) {
             field = value
             invalidate()
         }
 
+    /** false di mode dribble (tidak perlu kotak rim). */
     var showRim: Boolean = true
         set(value) {
             field = value
@@ -72,16 +97,21 @@ class OverlayView @JvmOverloads constructor(
 
     private enum class DragMode { NONE, MOVE, RESIZE_BR }
 
+    /** Salinan rim untuk dikirim ke ShotTrackerEngine. */
     fun rimNormalized(): RectF = RectF(rim)
+
+    // ========== MENGGAMBAR ==========
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat()
         val h = height.toFloat()
         if (showRim) {
+            // Ubah 0..1 menjadi piksel layar
             val rect = RectF(rim.left * w, rim.top * h, rim.right * w, rim.bottom * h)
             canvas.drawRect(rect, rimFill)
             canvas.drawRect(rect, rimPaint)
+            // Titik pegangan resize di pojok kanan-bawah
             canvas.drawCircle(rect.right, rect.bottom, 18f, ballPaint)
         }
 
@@ -98,6 +128,13 @@ class OverlayView @JvmOverloads constructor(
         }
     }
 
+    // ========== SENTUHAN: GESER / UBAH UKURAN RIM ==========
+
+    /**
+     * Sentuh di dalam kotak → geser.
+     * Sentuh dekat pojok kanan-bawah → ubah ukuran.
+     * Semua perubahan tetap dalam rentang 0..1.
+     */
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!showRim) return false
         val w = width.toFloat().coerceAtLeast(1f)
@@ -134,7 +171,7 @@ class OverlayView @JvmOverloads constructor(
                         if (next.top < 0f) next.offset(0f, -next.top)
                         if (next.right > 1f) next.offset(1f - next.right, 0f)
                         if (next.bottom > 1f) next.offset(0f, 1f - next.bottom)
-                        // preserve size if clamped oddly
+                        // Jaga ukuran jika clamp merusak bentuk
                         if (next.width() < widthN * 0.9f || next.height() < heightN * 0.9f) {
                             next.set(
                                 next.left.coerceIn(0f, 1f - widthN),

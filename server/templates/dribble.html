@@ -1,4 +1,20 @@
 <!DOCTYPE html>
+<!--
+  ============================================================================
+  CourtAI — Pound The Rock (latihan dribble)  →  /app/dribble
+  ----------------------------------------------------------------------------
+  ALUR KERJA (mudah diingat):
+  1) Nyalakan kamera (camera.js)
+  2) Setiap frame, cari bola berwarna oranye (tracker.js → BallSensor)
+  3) DribbleEngine menghitung "bounce" saat bola turun lalu naik lagi
+  4) Angka skor di layar bertambah; Finish menyimpan sesi (storage.js)
+
+  FILE YANG DIPAKAI:
+  - camera.js  = buka kamera + gambar preview
+  - tracker.js = otak deteksi bola & hitung dribble
+  - storage.js = simpan hasil latihan
+  ============================================================================
+-->
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
@@ -51,11 +67,17 @@
   <script src="/static/js/tracker.js?v=6"></script>
   <script src="/static/js/camera.js?v=4"></script>
   <script>
+    /* ========== PENGATURAN AWAL HALAMAN DRIBBLE ==========
+       engine  = penghitung bounce/dribble
+       filter  = menghaluskan posisi bola agar tidak "loncat-loncat"
+       running = true saat Stopwatch latihan sedang jalan
+       mirrored = gambar dibalik (seperti cermin) biar gerakan terasa natural
+    */
     const engine = new BallTracker.DribbleEngine();
     const filter = new BallTracker.TrackerFilter();
     let stream = null, running = false, mirrored = true, raf = 0, startedAt = 0, timer = null;
     let cameraOn = false, stopPreview = null;
-    const duration = 30;
+    const duration = 30; // detik per sesi
 
     function showSecureHintIfNeeded() {
       if (CourtCamera.isSecureOk()) return false;

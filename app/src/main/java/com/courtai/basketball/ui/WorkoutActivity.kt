@@ -15,6 +15,14 @@ import com.courtai.basketball.data.WorkoutCatalog
 import com.courtai.basketball.databinding.ActivityWorkoutBinding
 import com.google.android.material.button.MaterialButton
 
+/**
+ * ============================================================================
+ * WorkoutActivity.kt — daftar paket latihan (beberapa drill berurutan)
+ * ============================================================================
+ *
+ * PERAN: tampilkan WorkoutCatalog; Start membuka drill pertama di ShotTracker.
+ * ALUR: pilih paket → pastikan izin kamera → ShotTrackerActivity.
+ */
 class WorkoutActivity : AppCompatActivity() {
     private lateinit var binding: ActivityWorkoutBinding
     private var pendingDrillId: String? = null
@@ -30,6 +38,7 @@ class WorkoutActivity : AppCompatActivity() {
         binding = ActivityWorkoutBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Bangun kartu UI secara kode (bukan XML item) untuk tiap paket
         WorkoutCatalog.all.forEach { plan ->
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL

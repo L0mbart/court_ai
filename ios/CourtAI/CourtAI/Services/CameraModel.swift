@@ -1,23 +1,42 @@
+// ============================================================================
+// CameraModel.swift
+// CourtAI — Kamera + deteksi bola live
+// ----------------------------------------------------------------------------
+// ALUR:
+//   1. start() → minta izin kamera → configure sesi AVCapture.
+//   2. Tiap frame video masuk ke captureOutput(...).
+//   3. Scan piksel oranye → update @Published ball (BallPoint?).
+//   4. Layar (DribbleView / ShootView) membaca `ball` dan menggambar lingkaran.
+//
+// Analogi: CCTV yang terus foto, lalu pensil oranye menebalkan bola di layar.
+// ============================================================================
+
 import AVFoundation
 import UIKit
 import SwiftUI
 
-final class CameraModel: NSObject, ObservableObject {
-    @Published var ball: BallPoint?
-    @Published var permissionDenied = false
-    @Published var usingFront = true
+// MARK: - CameraModel: pengelola kamera
 
-    let session = AVCaptureSession()
-    private let output = AVCaptureVideoDataOutput()
-    private let queue = DispatchQueue(label: "courtai.camera")
+/// Menghidupkan kamera depan/belakang dan mencari bola tiap frame.
+/// `ObservableObject` = UI otomatis ikut berubah saat `ball` berubah.
+final class CameraModel: NSObject, ObservableObject {
+    @Published var ball: BallPoint?          // posisi bola terkini (nil = tidak ketemu)
+    @Published var permissionDenied = false  // user tolak izin kamera
+    @Published var usingFront = true         // true = kamera depan (selfie)
+
+    let session = AVCaptureSession()         // "pipa" video dari kamera
+    private let output = AVCaptureVideoDataOutput() // ambil frame mentah
+    private let queue = DispatchQueue(label: "courtai.camera") // kerja di background
     private var isRunning = false
 
+    /// Mulai kamera. Default depan (baik untuk dribble di depan wajah).
     func start(front: Bool = true) {
         usingFront = front
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             configure()
         case .notDetermined:
+            // Pertama kali: iOS tampilkan popup izin
             AVCaptureDevice.requestAccess(for: .video) { ok in
                 DispatchQueue.main.async {
                     if ok { self.configure() } else { self.permissionDenied = true }
@@ -28,11 +47,13 @@ final class CameraModel: NSObject, ObservableObject {
         }
     }
 
+    /// Tukar kamera depan ↔ belakang.
     func flip() {
         stop()
         start(front: !usingFront)
     }
 
+    /// Matikan sesi kamera (hemat baterai saat keluar layar).
     func stop() {
         queue.async {
             if self.session.isRunning { self.session.stopRunning() }
@@ -40,10 +61,14 @@ final class CameraModel: NSObject, ObservableObject {
         }
     }
 
+    // MARK: Konfigurasi sesi kamera
+
+    /// Pasang input kamera + output frame, lalu jalankan.
     private func configure() {
         queue.async {
             self.session.beginConfiguration()
             self.session.sessionPreset = .hd1280x720
+            // Bersihkan input/output lama (penting saat flip)
             self.session.inputs.forEach { self.session.removeInput($0) }
             self.session.outputs.forEach { self.session.removeOutput($0) }
 
@@ -55,7 +80,7 @@ final class CameraModel: NSObject, ObservableObject {
                 return
             }
             self.session.addInput(input)
-            self.output.alwaysDiscardsLateVideoFrames = true
+            self.output.alwaysDiscardsLateVideoFrames = true // drop frame lama jika lambat
             self.output.videoSettings = [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
             ]
@@ -65,8 +90,9 @@ final class CameraModel: NSObject, ObservableObject {
             }
             if let conn = self.output.connection(with: .video) {
                 if conn.isVideoOrientationSupported {
-                    conn.videoOrientation = .portrait
+                    conn.videoOrientation = .portrait // potret, seperti HP digenggam
                 }
+                // Kamera depan biasanya di-mirror (seperti cermin)
                 if self.usingFront && conn.isVideoMirroringSupported {
                     conn.isVideoMirrored = true
                 }
@@ -80,7 +106,10 @@ final class CameraModel: NSObject, ObservableObject {
     }
 }
 
+// MARK: - Delegate: tiap frame video
+
 extension CameraModel: AVCaptureVideoDataOutputSampleBufferDelegate {
+    /// Dipanggil sistem tiap ada frame baru dari kamera.
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         CVPixelBufferLockBaseAddress(pb, .readOnly)
@@ -89,11 +118,12 @@ extension CameraModel: AVCaptureVideoDataOutputSampleBufferDelegate {
         let w = CVPixelBufferGetWidth(pb)
         let h = CVPixelBufferGetHeight(pb)
         let row = CVPixelBufferGetBytesPerRow(pb)
-        // BGRA -> treat as RGBA channel order carefully for orange detect
-        // Our detector expects RGBA; convert by swapping R/B when reading via pointer as BGRA.
+        // Format kamera = BGRA (Biru, Hijau, Merah, Alpha).
+        // Saat baca: o=B, o+1=G, o+2=R — jangan tertukar!
         let ptr = base.assumingMemoryBound(to: UInt8.self)
         var sumX = 0.0, sumY = 0.0, count = 0
         var minX = w, minY = h, maxX = 0, maxY = 0
+        // step: skip beberapa piksel agar lebih cepat (tidak perlu scan semua)
         let step = max(4, min(w, h) / 80)
         var y = 0
         while y < h {
@@ -101,6 +131,7 @@ extension CameraModel: AVCaptureVideoDataOutputSampleBufferDelegate {
             while x < w {
                 let o = y * row + x * 4
                 let b = Int(ptr[o]), g = Int(ptr[o + 1]), r = Int(ptr[o + 2])
+                // Filter warna oranye (aturan sama ide dengan BallDetector)
                 if r >= 110 && r > g + 25 && r > b + 35 && g >= 35 && g <= 180 && b <= 130 {
                     let sat = Double(r - min(g, b)) / Double(max(1, r))
                     if sat >= 0.28 {
@@ -126,17 +157,21 @@ extension CameraModel: AVCaptureVideoDataOutputSampleBufferDelegate {
         } else {
             point = nil
         }
+        // Update UI harus di main thread
         DispatchQueue.main.async { self.ball = point }
     }
 }
 
+// MARK: - CameraPreview: tampilan live kamera di SwiftUI
+
+/// Jembatan SwiftUI ↔ UIKit agar bisa menampilkan preview AVCaptureSession.
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
 
     func makeUIView(context: Context) -> PreviewView {
         let v = PreviewView()
         v.videoPreviewLayer.session = session
-        v.videoPreviewLayer.videoGravity = .resizeAspectFill
+        v.videoPreviewLayer.videoGravity = .resizeAspectFill // isi layar, boleh crop
         return v
     }
 
@@ -144,6 +179,7 @@ struct CameraPreview: UIViewRepresentable {
         uiView.videoPreviewLayer.session = session
     }
 
+    /// UIView khusus yang layer-nya adalah video preview.
     final class PreviewView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         var videoPreviewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }

@@ -1,4 +1,19 @@
 <!DOCTYPE html>
+<!--
+  ============================================================================
+  CourtAI — Halaman utama Web App (/app)
+  ----------------------------------------------------------------------------
+  UNTUK PELAJAR / PEMULA:
+  File HTML ini = "kerangka rumah". Isinya tombol, teks, dan tautan.
+  Logika hitung skor disimpan di file JavaScript (storage.js).
+
+  ALUR SINGKAT:
+  1) Pengguna membuka /app di browser
+  2) Bisa unduh APK/iOS, atau mulai latihan (Pound The Rock / Shot Tracker)
+  3) Statistik lokal dibaca dari penyimpanan browser (localStorage)
+  4) Tombol Sync mengirim data ke server agar muncul di dashboard admin
+  ============================================================================
+-->
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
@@ -60,16 +75,20 @@
       </div>
     </div>
   </div>
+  <!-- storage.js: menyimpan & membaca skor latihan di browser -->
   <script src="/static/js/storage.js"></script>
   <script>
+    /* Tampilkan ringkasan skor lokal ke kartu di layar */
     function renderLocal() {
-      const stats = CourtStorage.summary();
+      const stats = CourtStorage.summary(); // hitung total sesi, make, attempt, FG%
       sSessions.textContent = stats.sessions;
       sMakes.textContent = stats.makes;
       sAttempts.textContent = stats.attempts;
       sFg.textContent = stats.fg == null ? "—" : Math.round(stats.fg) + "%";
     }
     renderLocal();
+
+    /* Kirim semua sesi lokal ke server (dashboard admin) */
     btnSync.onclick = async () => {
       syncMsg.textContent = "Syncing...";
       try {

@@ -1,5 +1,21 @@
+// ============================================================================
+// ShootView.swift
+// CourtAI — Layar latihan tembak (Shot Tracker)
+// ----------------------------------------------------------------------------
+// ALUR:
+//   1. User geser kotak amber = posisi "rim" virtual di layar.
+//   2. Start → ShotEngine baca lintasan bola vs rim → MAKE / MISS otomatis.
+//   3. Bisa juga tambah manual (+ Make / + Miss).
+//   4. Finish → sync ke server → tutup.
+//
+// Analogi: wasit + papan skor. Kotak rim = "jendela ring" yang kamu pasang
+// di depan kamera agar AI tahu di mana ring sebenarnya.
+// ============================================================================
+
 import SwiftUI
 import UIKit
+
+// MARK: - ShootView
 
 struct ShootView: View {
     @EnvironmentObject var session: AppSession
@@ -13,6 +29,7 @@ struct ShootView: View {
     @State private var elapsed = "00:00"
     @State private var timer: Timer?
     @State private var status = "Geser kotak rim, lalu Start."
+    /// Kotak rim dalam koordinat 0...1 (sama sistem dengan BallPoint).
     @State private var rimNorm = CGRect(x: 0.35, y: 0.18, width: 0.30, height: 0.12)
 
     var body: some View {
@@ -21,6 +38,7 @@ struct ShootView: View {
             CameraPreview(session: camera.session).ignoresSafeArea()
 
             GeometryReader { geo in
+                // Lingkaran tracking bola
                 if let ball = camera.ball {
                     Circle()
                         .stroke(CourtTheme.orange, lineWidth: 3)
@@ -32,6 +50,7 @@ struct ShootView: View {
                         .position(x: ball.x * geo.size.width, y: ball.y * geo.size.height)
                 }
 
+                // Kotak rim yang bisa digeser (DragGesture)
                 RoundedRectangle(cornerRadius: 4)
                     .stroke(CourtTheme.amber, lineWidth: 3)
                     .background(RoundedRectangle(cornerRadius: 4).fill(CourtTheme.amber.opacity(0.18)))
@@ -45,6 +64,7 @@ struct ShootView: View {
                             .onChanged { value in
                                 let w = rimNorm.width
                                 let h = rimNorm.height
+                                // Posisi jari → pojok kiri-atas kotak, diklem agar tidak keluar layar
                                 var x = value.location.x / geo.size.width - w / 2
                                 var y = value.location.y / geo.size.height - h / 2
                                 x = min(max(0, x), 1 - w)
@@ -56,6 +76,7 @@ struct ShootView: View {
             }
 
             VStack {
+                // --- Papan skor atas ---
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         VStack(alignment: .leading) {
@@ -81,6 +102,7 @@ struct ShootView: View {
 
                 Spacer()
 
+                // --- Kontrol bawah ---
                 HStack {
                     Button(tracking ? "Pause" : "Start") { toggle() }
                         .buttonStyle(PrimaryButtonStyle())
@@ -98,13 +120,14 @@ struct ShootView: View {
             }
         }
         .onAppear {
-            camera.start(front: false)
+            camera.start(front: false) // belakang biasanya menghadap ring
             engine.rim = rimNorm
         }
         .onDisappear {
             timer?.invalidate()
             camera.stop()
         }
+        // AI make/miss otomatis dari ShotEngine
         .onChange(of: camera.ball) { _, ball in
             guard tracking else { return }
             if let event = engine.onBall(ball) {
@@ -116,10 +139,13 @@ struct ShootView: View {
         }
     }
 
+    /// Field goal % sederhana: makes / (makes+misses).
     private var fgText: String {
         let a = makes + misses
         return a == 0 ? "0%" : "\(makes * 100 / a)%"
     }
+
+    // MARK: - Start / Pause / Finish
 
     private func toggle() {
         tracking.toggle()

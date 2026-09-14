@@ -18,6 +18,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * ============================================================================
+ * StatsActivity.kt — ringkasan & daftar sesi latihan
+ * ============================================================================
+ *
+ * PERAN: tampilkan total sesi / MAKE / FG%, plus daftar riwayat dari Room.
+ * ALUR: baca summary + observeSessions() → isi kartu & RecyclerView.
+ */
 class StatsActivity : AppCompatActivity() {
     private lateinit var binding: ActivityStatsBinding
     private val adapter = SessionAdapter()
@@ -37,6 +45,7 @@ class StatsActivity : AppCompatActivity() {
             binding.tvTotalMakes.text = s.makes.toString()
             binding.tvTotalFg.text = s.fgPercent?.let { String.format("%.0f%%", it) } ?: "—"
         }
+        // Flow: daftar berubah otomatis jika ada sesi baru
         lifecycleScope.launch {
             repo.observeSessions().collectLatest { list ->
                 binding.tvEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
@@ -45,6 +54,7 @@ class StatsActivity : AppCompatActivity() {
         }
     }
 
+    /** Adapter daftar sesi: satu baris = satu TrainingSession. */
     private class SessionAdapter : RecyclerView.Adapter<SessionAdapter.VH>() {
         private var items: List<TrainingSession> = emptyList()
         private val fmt = SimpleDateFormat("dd MMM yyyy · HH:mm", Locale.getDefault())

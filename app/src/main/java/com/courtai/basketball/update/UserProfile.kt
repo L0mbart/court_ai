@@ -5,8 +5,13 @@ import android.content.SharedPreferences
 import java.text.Normalizer
 
 /**
- * Nama pemain = ID tracking di dashboard web.
- * Contoh: "User A" → userId "user-a", tampil sebagai "User A".
+ * ============================================================================
+ * UserProfile.kt — nama pemain lokal (legacy / helper dashboard)
+ * ============================================================================
+ *
+ * PERAN: simpan display name & buat userId slug dari nama
+ * (contoh "User A" → "user-a"). AuthSession kini jadi sumber utama login;
+ * file ini tetap berguna untuk ID tracking berbasis nama.
  */
 object UserProfile {
     private const val PREFS = "courtai_user"
@@ -35,6 +40,7 @@ object UserProfile {
         return clean
     }
 
+    /** Ubah nama jadi slug aman URL: huruf kecil, spasi → strip. */
     fun slugify(name: String): String {
         val normalized = Normalizer.normalize(name.trim().lowercase(), Normalizer.Form.NFD)
             .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")

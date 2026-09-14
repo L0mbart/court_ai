@@ -1,4 +1,21 @@
 <!DOCTYPE html>
+<!--
+  ============================================================================
+  CourtAI — Shot Tracker (hitung tembakan)  →  /app/shoot
+  ----------------------------------------------------------------------------
+  ALUR KERJA:
+  1) Nyalakan kamera
+  2) Atur kotak kuning RING (geser + ubah ukuran) supaya pas di ring basket
+  3) Lempar bola; ShotEngine membaca jalur bola
+  4) MAKE = bola dari atas lalu lewat kotak RING; MISS = meleset
+  5) Finish menyimpan sesi ke browser (storage.js)
+
+  ELEMEN PENTING:
+  - #rim     = kotak ring yang bisa digeser/diubah ukuran
+  - #video   = tampilan kamera
+  - #overlay = gambar lingkaran bola di atas video
+  ============================================================================
+-->
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
@@ -107,6 +124,11 @@
   <script src="/static/js/tracker.js?v=6"></script>
   <script src="/static/js/camera.js?v=4"></script>
   <script>
+    /* ========== PENGATURAN AWAL SHOT TRACKER ==========
+       makes / misses = skor tembakan
+       filter         = haluskan posisi bola
+       shotEngine     = putuskan MAKE atau MISS berdasarkan jalur bola vs RING
+    */
     let stream=null, running=false, mirrored=true, raf=0, startedAt=0, timer=null;
     let makes=0, misses=0, cameraOn=false, stopPreview=null;
     const filter = new BallTracker.TrackerFilter();

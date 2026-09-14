@@ -11,12 +11,21 @@ import androidx.core.app.NotificationManagerCompat
 import com.courtai.basketball.R
 import com.courtai.basketball.ui.MainActivity
 
+/**
+ * ============================================================================
+ * UpdateNotifier.kt — notifikasi sistem “ada update”
+ * ============================================================================
+ *
+ * PERAN: buat channel notifikasi + tampilkan alert saat versi baru tersedia.
+ * Tap notifikasi → MainActivity dengan extra open_update (buka dialog update).
+ */
 object UpdateNotifier {
     const val CHANNEL_ID = "courtai_updates"
     private const val NOTIF_ID = 1103
     private const val PREFS = "courtai_update"
     private const val KEY_LAST_NOTIFIED = "last_notified_code"
 
+    /** Buat channel (wajib Android 8+). Dipanggil dari CourtAiApp. */
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val mgr = context.getSystemService(NotificationManager::class.java) ?: return
@@ -31,6 +40,10 @@ object UpdateNotifier {
         mgr.createNotificationChannel(channel)
     }
 
+    /**
+     * Tampilkan notifikasi sekali per versionCode
+     * (supaya tidak spam untuk versi yang sama).
+     */
     fun notifyUpdateAvailable(context: Context, remote: RemoteVersion) {
         ensureChannel(context)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -71,7 +84,7 @@ object UpdateNotifier {
             NotificationManagerCompat.from(context).notify(NOTIF_ID, notif)
             prefs.edit().putInt(KEY_LAST_NOTIFIED, remote.versionCode).apply()
         } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS not granted yet
+            // POST_NOTIFICATIONS belum diberikan
         }
     }
 }

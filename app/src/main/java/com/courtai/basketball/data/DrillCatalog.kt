@@ -1,5 +1,15 @@
 package com.courtai.basketball.data
 
+/**
+ * ============================================================================
+ * DrillCatalog.kt — katalog latihan tembak & paket workout
+ * ============================================================================
+ *
+ * PERAN: data statis (bukan database) untuk daftar drill & rencana latihan.
+ * Dipakai DrillListActivity, WorkoutActivity, ShotTrackerActivity.
+ */
+
+/** Satu jenis latihan tembak + target MAKE / batas waktu (0 = tidak ada batas). */
 data class Drill(
     val id: String,
     val title: String,
@@ -8,6 +18,7 @@ data class Drill(
     val timeLimitSec: Int,
     val category: String
 ) {
+    /** Teks singkat untuk kartu UI (mis. "10 makes · 120s"). */
     val meta: String
         get() = when {
             timeLimitSec > 0 && targetMakes > 0 -> "$targetMakes makes · ${timeLimitSec}s"
@@ -17,6 +28,7 @@ data class Drill(
         }
 }
 
+/** Daftar semua drill yang tersedia di app. */
 object DrillCatalog {
     val all = listOf(
         Drill("freestyle", "Freestyle", "Open shooting with auto make/miss tracking.", 0, 0, "Core"),
@@ -32,6 +44,7 @@ object DrillCatalog {
     fun byId(id: String): Drill = all.firstOrNull { it.id == id } ?: all.first()
 }
 
+/** Paket latihan: beberapa drill yang dijalankan berurutan (UI mulai dari yang pertama). */
 data class WorkoutPlan(
     val id: String,
     val title: String,

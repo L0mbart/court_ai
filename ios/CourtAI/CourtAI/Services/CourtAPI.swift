@@ -1,4 +1,21 @@
+// ============================================================================
+// CourtAPI.swift
+// CourtAI — Komunikasi dengan server (login & sync sesi)
+// ----------------------------------------------------------------------------
+// ALUR:
+//   LoginView / DribbleView / ShootView
+//        ↓
+//   CourtAPI.login / syncSessions  (HTTP POST + JSON)
+//        ↓
+//   Server dashboard (URL dari AppSession.serverURL)
+//
+// Analogi: kurir mengantar surat (request) ke kantor pusat (server),
+// lalu membawa balasan (response) kembali ke app.
+// ============================================================================
+
 import Foundation
+
+// MARK: - APIError: jenis kesalahan yang bisa dimengerti user
 
 enum APIError: LocalizedError {
     case badURL
@@ -14,7 +31,11 @@ enum APIError: LocalizedError {
     }
 }
 
+// MARK: - CourtAPI: fungsi-fungsi HTTP
+
+/// Kumpulan fungsi statis (tanpa objek) untuk bicara ke backend.
 enum CourtAPI {
+    /// Login: kirim email/telepon + password → terima data user + token.
     static func login(base: URL, identifier: String, password: String) async throws -> AuthUser {
         let url = base.appendingPathComponent("api/auth/login")
         var req = URLRequest(url: url)
@@ -26,6 +47,7 @@ enum CourtAPI {
 
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw APIError.server("No response") }
+        // Kode 2xx = sukses; selain itu coba baca pesan "detail" dari server
         if !(200...299).contains(http.statusCode) {
             if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let detail = obj["detail"] as? String {
@@ -43,6 +65,7 @@ enum CourtAPI {
         )
     }
 
+    /// Kirim satu atau banyak sesi latihan ke server agar tersimpan di dashboard.
     static func syncSessions(base: URL, sessions: [SessionPayload]) async throws {
         let url = base.appendingPathComponent("api/sessions/sync")
         var req = URLRequest(url: url)

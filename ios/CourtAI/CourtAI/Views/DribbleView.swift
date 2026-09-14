@@ -1,13 +1,29 @@
+// ============================================================================
+// DribbleView.swift
+// CourtAI — Layar latihan dribble "Pound The Rock"
+// ----------------------------------------------------------------------------
+// ALUR:
+//   Kamera hidup → CameraModel.ball berubah tiap frame
+//        ↓ (jika tracking = true)
+//   DribbleEngine.onBall → hitung dribble / combo / skor
+//        ↓ (Finish atau waktu habis)
+//   CourtAPI.syncSessions → simpan ke server → tutup layar
+//
+// Analogi: game arcade — kamera = sensor, engine = mesin skor, timer 30 detik.
+// ============================================================================
+
 import SwiftUI
 import UIKit
+
+// MARK: - DribbleView
 
 struct DribbleView: View {
     @EnvironmentObject var session: AppSession
     @Environment(\.dismiss) private var dismiss
     @StateObject private var camera = CameraModel()
     @State private var engine = DribbleEngine()
-    @State private var tracking = false
-    @State private var remaining = 30
+    @State private var tracking = false   // Start/Pause
+    @State private var remaining = 30     // sisa detik
     @State private var startedAt: Date?
     @State private var timer: Timer?
     @State private var status = "Izinkan kamera, lalu Start."
@@ -18,6 +34,7 @@ struct DribbleView: View {
             CameraPreview(session: camera.session)
                 .ignoresSafeArea()
 
+            // Overlay lingkaran oranye di posisi bola (jika ketemu)
             if let ball = camera.ball {
                 GeometryReader { geo in
                     Circle()
@@ -27,9 +44,10 @@ struct DribbleView: View {
                             width: max(36, ball.radius * min(geo.size.width, geo.size.height) * 2),
                             height: max(36, ball.radius * min(geo.size.width, geo.size.height) * 2)
                         )
+                        // BallPoint 0...1 → pixel layar
                         .position(x: ball.x * geo.size.width, y: ball.y * geo.size.height)
                 }
-                .allowsHitTesting(false)
+                .allowsHitTesting(false) // jangan blok tombol di bawah
             }
 
             VStack {
@@ -52,11 +70,14 @@ struct DribbleView: View {
             timer?.invalidate()
             camera.stop()
         }
+        // Tiap posisi bola berubah → kirim ke engine (hanya saat tracking)
         .onChange(of: camera.ball) { _, ball in
             guard tracking else { return }
             _ = engine.onBall(ball)
         }
     }
+
+    // MARK: - UI bar atas & bawah
 
     private var topBar: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -101,6 +122,9 @@ struct DribbleView: View {
             .frame(maxWidth: .infinity)
     }
 
+    // MARK: - Start / Pause / Finish
+
+    /// Start: reset engine + timer 30 dtk. Pause: berhenti hitung.
     private func toggle() {
         tracking.toggle()
         if tracking {
@@ -121,6 +145,7 @@ struct DribbleView: View {
         }
     }
 
+    /// Kirim hasil sesi ke server lalu tutup layar.
     private func finish() async {
         tracking = false
         timer?.invalidate()

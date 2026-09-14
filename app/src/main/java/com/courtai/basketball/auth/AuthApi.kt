@@ -8,7 +8,28 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
+/**
+ * ============================================================================
+ * AuthApi.kt — komunikasi login ke server
+ * ============================================================================
+ *
+ * PERAN FILE:
+ * Mengirim email/telepon + password ke API, lalu menerima data user + token.
+ * Tidak menyimpan apa-apa — penyimpanan ada di AuthSession.
+ *
+ * ALUR SINGKAT:
+ * 1. Bangun JSON { identifier, password }.
+ * 2. POST ke /api/auth/login.
+ * 3. Jika sukses → LoggedInUser; jika gagal → Exception dengan pesan server.
+ */
 object AuthApi {
+    /**
+     * Login ke dashboard server.
+     *
+     * @param identifier email atau nomor telepon
+     * @param password kata sandi
+     * @return user yang berhasil masuk (lalu biasanya AuthSession.save)
+     */
     suspend fun login(context: Context, identifier: String, password: String): LoggedInUser =
         withContext(Dispatchers.IO) {
             val base = ServerConfig.getBaseUrl(context)

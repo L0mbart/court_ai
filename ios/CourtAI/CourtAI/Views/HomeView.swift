@@ -1,7 +1,24 @@
+// ============================================================================
+// HomeView.swift
+// CourtAI — Layar beranda setelah login
+// ----------------------------------------------------------------------------
+// ALUR:
+//   Login / biometric OK → HomeView
+//     • Lihat profil + statistik ringkas
+//     • Tombol Shot Tracker → ShootView (full screen)
+//     • Tombol Pound The Rock → DribbleView
+//     • Sync / Update / Server → layanan terkait
+//
+// Analogi: lobi gym — pilih mesin latihan, cek papan skor, atur alamat klub.
+// ============================================================================
+
 import SwiftUI
+
+// MARK: - HomeView
 
 struct HomeView: View {
     @EnvironmentObject var session: AppSession
+    // Statistik lokal di beranda (bisa diisi dari sesi sebelumnya nanti)
     @State private var makes = 0
     @State private var attempts = 0
     @State private var fgText = "—"
@@ -19,6 +36,7 @@ struct HomeView: View {
                 CourtBackground()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        // --- Header: merek + sapaan + logout ---
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("COURTAI")
@@ -38,6 +56,7 @@ struct HomeView: View {
                                 .frame(width: 96)
                         }
 
+                        // --- Kartu profil atlet ---
                         VStack(alignment: .leading, spacing: 6) {
                             Text("ATHLETE PROFILE")
                                 .font(.caption)
@@ -55,6 +74,7 @@ struct HomeView: View {
                         .background(CourtTheme.navy.opacity(0.9))
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
+                        // --- Ringkasan angka (makes / attempts / FG%) ---
                         HStack(spacing: 10) {
                             statCard("MAKES", "\(makes)", CourtTheme.mint)
                             statCard("ATTEMPTS", "\(attempts)", CourtTheme.cream)
@@ -67,6 +87,7 @@ struct HomeView: View {
                             .tracking(1)
                             .padding(.top, 8)
 
+                        // Buka mode tembak
                         Button {
                             showShoot = true
                         } label: {
@@ -81,6 +102,7 @@ struct HomeView: View {
                         }
                         .buttonStyle(PrimaryButtonStyle())
 
+                        // Buka mode dribble
                         Button {
                             showDribble = true
                         } label: {
@@ -134,6 +156,7 @@ struct HomeView: View {
                 isPresented: $showUpdateAlert
             ) {
                 Button("Update sekarang") { openUpdate() }
+                // Jika forceUpdate, tombol "Nanti" disembunyikan
                 if updateInfo?.forceUpdate != true {
                     Button("Nanti", role: .cancel) {}
                 }
@@ -142,12 +165,15 @@ struct HomeView: View {
                     ? (updateInfo?.changelog ?? "")
                     : "Versi baru CourtAI tersedia.")
             }
+            // Saat layar muncul: minta izin notifikasi + cek update diam-diam
             .task {
                 await UpdateService.requestNotificationPermission()
                 await checkUpdate(manual: false)
             }
         }
     }
+
+    // MARK: - Helper tampilan
 
     private var firstName: String {
         session.user?.name.split(separator: " ").first.map(String.init) ?? "Athlete"
@@ -170,11 +196,14 @@ struct HomeView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
+    // MARK: - Aksi tombol
+
     private func sync() async {
         guard let user = session.user else { return }
         status = "Siap sync sebagai \(user.name). Selesaikan sesi training untuk kirim data."
     }
 
+    /// Cek update. `manual: true` = user tekan tombol (tampilkan pesan jika sudah terbaru).
     private func checkUpdate(manual: Bool) async {
         guard let base = URL(string: session.serverURL) else {
             if manual { status = "Server URL tidak valid" }
@@ -195,6 +224,7 @@ struct HomeView: View {
         }
     }
 
+    /// Buka link unduhan di Safari / browser sistem.
     private func openUpdate() {
         guard let remote = updateInfo,
               let base = URL(string: session.serverURL),

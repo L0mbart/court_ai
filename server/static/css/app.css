@@ -1,3 +1,14 @@
+/*
+  ============================================================================
+  CourtAI — app.css (tampilan / gaya halaman web)
+  ----------------------------------------------------------------------------
+  CSS = "cat dinding & furniture" untuk HTML.
+  Di sini kita atur warna, ukuran huruf, tombol, layout kamera, dll.
+
+  Variabel di :root (contoh --orange) seperti "cat warna siap pakai"
+  yang bisa dipakai ulang di seluruh halaman dengan var(--orange).
+  ============================================================================
+*/
 :root {
   --ink: #0b1220;
   --navy: #132238;

@@ -19,6 +19,23 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
+/**
+ * ============================================================================
+ * UpdateChecker.kt — cek & unduh versi baru aplikasi
+ * ============================================================================
+ *
+ * PERAN FILE:
+ * Tanya server “apakah ada APK lebih baru?”. Jika ya, tampilkan dialog,
+ * unduh file, lalu buka installer Android.
+ *
+ * ALUR SINGKAT:
+ * 1. GET /api/version → dapat versionCode, changelog, apkUrl.
+ * 2. Bandingkan dengan BuildConfig.VERSION_CODE di HP.
+ * 3. Jika lebih baru → dialog + notifikasi.
+ * 4. User setuju → UpdateDownloadActivity unduh APK → install.
+ */
+
+/** Data versi yang dikirim server (JSON). */
 data class RemoteVersion(
     val versionCode: Int,
     val versionName: String,
@@ -27,7 +44,15 @@ data class RemoteVersion(
     val apkUrl: String?
 )
 
+/**
+ * Objek utilitas untuk cek update (bukan Activity).
+ * Dipanggil dari MainActivity saat buka / tombol Check Update.
+ */
 object UpdateChecker {
+    /**
+     * Ambil info versi dari server (jalan di thread IO).
+     * @throws Exception jika server offline atau HTTP error
+     */
     suspend fun fetchVersion(context: android.content.Context): RemoteVersion =
         withContext(Dispatchers.IO) {
             val base = ServerConfig.getBaseUrl(context)
@@ -55,9 +80,11 @@ object UpdateChecker {
             }
         }
 
+    /** true jika versionCode remote lebih besar dari yang terpasang. */
     fun isNewer(remote: RemoteVersion): Boolean =
         remote.versionCode > BuildConfig.VERSION_CODE
 
+    /** Tampilkan dialog update; forceUpdate = tidak bisa ditutup dengan “Nanti”. */
     fun showUpdateDialog(activity: Activity, remote: RemoteVersion) {
         if (remote.apkUrl.isNullOrBlank()) {
             Toast.makeText(
@@ -88,6 +115,11 @@ object UpdateChecker {
         builder.show()
     }
 
+    /**
+     * Cek server lalu prompt jika ada update.
+     * @param silentIfLatest true = diam saja kalau sudah terbaru
+     * @param notify true = tampilkan juga notifikasi sistem
+     */
     suspend fun checkAndPrompt(
         activity: Activity,
         silentIfLatest: Boolean = true,
@@ -123,6 +155,12 @@ object UpdateChecker {
     }
 }
 
+// ========== ACTIVITY PENGUNDUH APK ==========
+
+/**
+ * Layar singkat (tanpa UI rumit): unduh APK di background thread,
+ * lalu buka Intent installer Android.
+ */
 class UpdateDownloadActivity : Activity() {
     companion object {
         const val EXTRA_URL = "url"
@@ -152,6 +190,7 @@ class UpdateDownloadActivity : Activity() {
         }.start()
     }
 
+    /** Android 8+: wajib izinkan “install unknown apps” untuk CourtAI. */
     private fun ensureInstallPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
             startActivity(
@@ -164,6 +203,7 @@ class UpdateDownloadActivity : Activity() {
         }
     }
 
+    /** Unduh file APK ke cacheDir aplikasi. */
     private fun downloadApk(url: String, version: String): File {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15000
@@ -187,6 +227,7 @@ class UpdateDownloadActivity : Activity() {
         }
     }
 
+    /** Buka installer sistem dengan FileProvider (aman, tidak pakai file:// mentah). */
     private fun installApk(file: File) {
         val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW).apply {

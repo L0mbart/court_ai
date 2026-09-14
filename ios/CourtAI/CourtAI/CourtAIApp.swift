@@ -1,7 +1,23 @@
+// ============================================================================
+// CourtAIApp.swift
+// CourtAI — Pintu masuk app (titik @main)
+// ----------------------------------------------------------------------------
+// ALUR LAYAR:
+//   Belum login          → LoginView
+//   Login + biometrik ON → BiometricGateView (Face ID / Touch ID)
+//   Sudah unlock         → HomeView
+//
+// Analogi: resepsionis gedung — cek kartu anggota, lalu kunci sidik jari,
+// baru boleh masuk ke lobi (Home).
+// ============================================================================
+
 import SwiftUI
+
+// MARK: - Entry point app
 
 @main
 struct CourtAIApp: App {
+    /// Satu AppSession untuk seluruh app (dibagikan lewat environmentObject).
     @StateObject private var session = AppSession()
 
     var body: some Scene {
@@ -11,6 +27,8 @@ struct CourtAIApp: App {
         }
     }
 }
+
+// MARK: - RootView: "saklar" layar utama
 
 struct RootView: View {
     @EnvironmentObject var session: AppSession
@@ -27,6 +45,8 @@ struct RootView: View {
         }
     }
 }
+
+// MARK: - BiometricGateView: kunci Face ID / Touch ID
 
 struct BiometricGateView: View {
     @EnvironmentObject var session: AppSession
@@ -57,6 +77,7 @@ struct BiometricGateView: View {
             }
             .padding(24)
         }
+        // Coba unlock otomatis saat layar muncul
         .task {
             let ok = await BiometricAuth.unlock(reason: "Masuk CourtAI")
             if ok { session.markUnlocked() }

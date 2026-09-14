@@ -35,8 +35,26 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
+/**
+ * ============================================================================
+ * DribbleActivity.kt — layar latihan dribble (Pound The Rock)
+ * ============================================================================
+ *
+ * PERAN FILE:
+ * Menyalakan kamera, mencari bola, menghitung dribble, menampilkan skor,
+ * lalu menyimpan sesi ke database (+ sync ke server kalau bisa).
+ *
+ * ALUR SINGKAT:
+ * 1. Buka kamera depan → BallAnalyzer cari bola oranye.
+ * 2. User tekan Start → DribbleEngine mulai hitung bounce.
+ * 3. Tiap dribble: HUD update, flash poin, getar ringan.
+ * 4. Waktu habis / Finish → simpan skor → tutup layar.
+ *
+ * Analogi: seperti stopwatch + wasit yang menghitung pantulan bola.
+ */
 class DribbleActivity : AppCompatActivity() {
     companion object {
+        /** Extra Intent: durasi timer (detik). Default 30. */
         const val EXTRA_DURATION_SEC = "duration_sec"
         private const val DEFAULT_DURATION = 30
     }
@@ -45,6 +63,7 @@ class DribbleActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
     private lateinit var overlay: OverlayView
     private val engine = DribbleEngine()
+    /** Thread terpisah untuk analisis gambar (jangan blok UI). */
     private val analysisExecutor = Executors.newSingleThreadExecutor()
     private var analyzer: BallAnalyzer? = null
 
@@ -55,6 +74,8 @@ class DribbleActivity : AppCompatActivity() {
     private var useFrontCamera = true
     private var cameraProvider: ProcessCameraProvider? = null
     private var analysisUseCase: ImageAnalysis? = null
+
+    // ========== SETUP LAYAR ==========
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,6 +92,7 @@ class DribbleActivity : AppCompatActivity() {
         setContentView(binding.root)
         previewView = findViewById(R.id.previewView)
         overlay = findViewById(R.id.overlay)
+        // Mode dribble: tidak perlu kotak rim / panduan drag
         overlay.showRim = false
         overlay.showGuide = false
 
@@ -119,6 +141,7 @@ class DribbleActivity : AppCompatActivity() {
         window.statusBarColor = Color.TRANSPARENT
     }
 
+    /** Sesuaikan padding agar tombol tidak tertutup notch / gesture bar. */
     private fun setupFullscreenInsets() {
         val topBase = binding.topBar.paddingTop
         val bottomBase = binding.bottomBar.paddingBottom
@@ -144,6 +167,12 @@ class DribbleActivity : AppCompatActivity() {
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
+    // ========== KAMERA + ANALISIS BOLA ==========
+
+    /**
+     * Siapkan CameraX: Preview (tampilan) + ImageAnalysis (BallAnalyzer).
+     * Setiap frame → map koordinat → update overlay → DribbleEngine.
+     */
     private fun startCamera() {
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener({
@@ -171,6 +200,7 @@ class DribbleActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    /** Bind ulang kamera depan/belakang ke lifecycle Activity ini. */
     private fun bindCamera() {
         val provider = cameraProvider ?: return
         val analysis = analysisUseCase ?: return
@@ -187,7 +217,7 @@ class DribbleActivity : AppCompatActivity() {
             provider.bindToLifecycle(this, selector, preview, analysis)
             analyzer?.enabled = tracking
         } catch (e: Exception) {
-            // Fallback if front camera unavailable
+            // Fallback jika kamera depan tidak ada
             if (useFrontCamera) {
                 useFrontCamera = false
                 updateFlipLabel()
@@ -210,6 +240,9 @@ class DribbleActivity : AppCompatActivity() {
         }
     }
 
+    // ========== START / PAUSE / TIMER ==========
+
+    /** Toggle tracking: Start reset engine + timer; Pause hanya menghentikan. */
     private fun toggleTracking() {
         tracking = !tracking
         analyzer?.enabled = tracking
@@ -227,6 +260,7 @@ class DribbleActivity : AppCompatActivity() {
         }
     }
 
+    /** Hitungan mundur; saat 0 → otomatis finishSession(). */
     private fun startTimer() {
         timerJob?.cancel()
         timerJob = lifecycleScope.launch {
@@ -244,6 +278,9 @@ class DribbleActivity : AppCompatActivity() {
         }
     }
 
+    // ========== FEEDBACK SAAT DRIBBLE ==========
+
+    /** Dipanggil tiap kali 1 dribble tercatat (auto atau manual). */
     private fun onDribbleCounted() {
         updateHud()
         val gain = when {
@@ -283,6 +320,7 @@ class DribbleActivity : AppCompatActivity() {
         }
     }
 
+    /** Perbarui angka skor, dribble, combo, sisi di HUD. */
     private fun updateHud() {
         binding.tvScore.text = engine.score.toString()
         binding.tvDribbles.text = "${engine.dribbles}\nDRIBBLES"
@@ -298,6 +336,12 @@ class DribbleActivity : AppCompatActivity() {
         }
     }
 
+    // ========== SIMPAN SESI ==========
+
+    /**
+     * Hentikan tracking, simpan ke Room, coba sync 1 sesi ke server, lalu tutup.
+     * makes = jumlah dribble (dipakai ulang field yang sama di DB).
+     */
     private fun finishSession() {
         if (tracking) {
             tracking = false

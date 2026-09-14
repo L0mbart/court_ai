@@ -16,6 +16,14 @@ import com.courtai.basketball.data.DrillCatalog
 import com.courtai.basketball.databinding.ActivityDrillsBinding
 import com.courtai.basketball.databinding.ItemDrillBinding
 
+/**
+ * ============================================================================
+ * DrillListActivity.kt — daftar latihan tembak (drill)
+ * ============================================================================
+ *
+ * PERAN: tampilkan DrillCatalog; tap item → ShotTracker dengan drillId itu.
+ * ALUR: pilih drill → izin kamera → mulai tracking MAKE/MISS.
+ */
 class DrillListActivity : AppCompatActivity() {
     private lateinit var binding: ActivityDrillsBinding
     private var pendingDrillId: String? = null
@@ -37,6 +45,7 @@ class DrillListActivity : AppCompatActivity() {
         }
     }
 
+    /** Minta CAMERA dulu jika belum ada, baru buka tracker. */
     private fun ensureCamera(drillId: String) {
         pendingDrillId = drillId
         val ok = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==

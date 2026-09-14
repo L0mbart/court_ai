@@ -7,18 +7,55 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Finds the densest orange basketball-like blob in a camera frame.
+ * ============================================================================
+ * BallAnalyzer.kt — “mata” yang mencari bola basket di kamera
+ * ============================================================================
+ *
+ * PERAN FILE:
+ * Setiap frame kamera masuk ke sini. Kita cari gumpalan warna oranye
+ * (seperti bola basket), lalu kirim posisi bola ke layar / engine lain.
+ *
+ * ALUR SINGKAT:
+ * 1. Kamera kirim 1 gambar (ImageProxy).
+ * 2. Scan piksel → cari yang “oranye bola basket”.
+ * 3. Kumpulkan di grid kasar → pilih area paling padat.
+ * 4. Scan ulang lebih detail di sekitar area itu → hitung pusat bola.
+ * 5. Haluskan gerakan (smoothing) supaya lingkaran di layar tidak loncat-loncat.
+ * 6. Panggil onResult(BallPoint) atau null kalau bola hilang.
+ *
+ * Analogi: seperti mata manusia yang mencari benda oranye di lapangan,
+ * lalu bilang “bola ada di sini” ke teman yang menggambar di layar.
+ */
+
+/**
+ * Kelas pencari bola di setiap frame kamera.
+ *
+ * @param onResult fungsi yang dipanggil tiap kali hasil siap.
+ *                 BallPoint = bola ketemu; null = bola belum / hilang.
  */
 class BallAnalyzer(
     private val onResult: (BallPoint?) -> Unit
 ) : ImageAnalysis.Analyzer {
 
+    /** true = sedang menganalisis; false = diam (hemat baterai/CPU). */
     @Volatile var enabled: Boolean = false
+
+    /** Waktu frame terakhir diproses — dipakai untuk batasi frekuensi (~28 ms). */
     private var lastTs = 0L
+
+    /** Posisi X/Y yang sudah dihaluskan (0..1). -1 = belum pernah ketemu. */
     private var smoothX = -1f
     private var smoothY = -1f
+
+    /** Kapan bola mulai “hilang” — tunggu sebentar sebelum benar-benar null. */
     private var lostSince = 0L
 
+    // ========== ANALISIS SATU FRAME KAMERA ==========
+
+    /**
+     * Dipanggil CameraX untuk setiap gambar baru.
+     * Di sini kita “membaca” warna piksel dan mencari bola.
+     */
     override fun analyze(image: ImageProxy) {
         try {
             if (!enabled) {
@@ -26,11 +63,13 @@ class BallAnalyzer(
                 return
             }
             val now = System.currentTimeMillis()
+            // Jangan proses terlalu sering — hemat tenaga HP
             if (now - lastTs < 28) {
                 return
             }
             lastTs = now
 
+            // Format YUV = cara kamera menyimpan warna (Y=terang, U/V=warna)
             if (image.format != ImageFormat.YUV_420_888) {
                 onResult(null)
                 return
@@ -51,6 +90,9 @@ class BallAnalyzer(
             val vRow = vPlane.rowStride
             val vPix = vPlane.pixelStride
 
+            // ========== PAS 1: SCAN KASAR (GRID) ==========
+            // Ibarat membagi layar jadi kotak-kotak kecil, lalu hitung
+            // berapa banyak “titik oranye” di tiap kotak.
             val step = max(3, min(width, height) / 100)
             val gw = max(8, width / 24)
             val gh = max(8, height / 24)
@@ -76,6 +118,7 @@ class BallAnalyzer(
                         x += step
                         continue
                     }
+                    // U/V diubah jadi RGB supaya mudah cek “oranye atau bukan”
                     val U = (uBuf.get(uIndex).toInt() and 0xFF) - 128
                     val V = (vBuf.get(vIndex).toInt() and 0xFF) - 128
                     val r = (Y + 1.370705f * V).toInt().coerceIn(0, 255)
@@ -95,6 +138,7 @@ class BallAnalyzer(
                 y += step
             }
 
+            // Cari kotak dengan paling banyak piksel oranye
             var best = -1f
             var bestI = -1
             for (i in grid.indices) {
@@ -108,6 +152,7 @@ class BallAnalyzer(
                 return
             }
 
+            // Gabungkan tetangga kotak terbaik → perkiraan pusat kasar
             val cellX = bestI % gw
             val cellY = bestI / gw
             var sumX = 0f
@@ -130,6 +175,8 @@ class BallAnalyzer(
                 return
             }
 
+            // ========== PAS 2: SCAN HALUS DI SEKITAR PUSAT ==========
+            // Seperti zoom-in: hanya periksa lingkaran di sekitar lokasi kasar.
             val roughX = sumX / count
             val roughY = sumY / count
             val searchR = max(24f, min(width, height) * 0.18f)
@@ -182,17 +229,22 @@ class BallAnalyzer(
                 return
             }
 
+            // ========== VALIDASI BENTUK BOLA ==========
+            // Pusat dinormalisasi 0..1 (kiri-atas = 0, kanan-bawah = 1)
             val cx = (rSumX / rCount).toFloat() / width
             val cy = (rSumY / rCount).toFloat() / height
             val bw = (maxX - minX).toFloat() / width
             val bh = (maxY - minY).toFloat() / height
             val radius = max(bw, bh) / 2f
             val aspect = if (bh < 0.001f) 99f else bw / bh
+            // Buang yang terlalu kecil/besar atau bentuknya aneh (bukan bulat)
             if (radius < 0.008f || radius > 0.38f || aspect < 0.35f || aspect > 2.8f) {
                 emitLost(now)
                 return
             }
 
+            // ========== SMOOTHING: gerakan lebih lembut ==========
+            // Gabungkan posisi lama + baru (seperti bola bergeser pelan, tidak teleport)
             lostSince = 0L
             val a = 0.22f
             if (smoothX < 0f) {
@@ -205,10 +257,17 @@ class BallAnalyzer(
             val conf = min(1f, rCount / 70f)
             onResult(BallPoint(smoothX, smoothY, radius, conf))
         } finally {
+            // WAJIB: tutup image supaya CameraX bisa kasih frame berikutnya
             image.close()
         }
     }
 
+    // ========== BOLA HILANG SEMENTARA ==========
+
+    /**
+     * Dipanggil saat frame ini tidak menemukan bola yang valid.
+     * Tidak langsung null: tahan posisi terakhir ~160 ms supaya tidak kedip.
+     */
     private fun emitLost(now: Long) {
         if (smoothX < 0f) {
             onResult(null)
@@ -220,10 +279,23 @@ class BallAnalyzer(
             smoothY = -1f
             onResult(null)
         } else {
+            // Masih “memegang” posisi lama dengan confidence rendah
             onResult(BallPoint(smoothX, smoothY, 0.05f, 0.2f))
         }
     }
 
+    // ========== CEK WARNA ORANYE BOLA BASKET ==========
+
+    /**
+     * Apakah piksel ini mirip warna bola basket?
+     *
+     * Syarat sederhana:
+     * - Merah (R) cukup kuat dan lebih besar dari hijau (G)
+     * - Biru (B) tidak terlalu tinggi (bukan ungu/pink)
+     * - Saturasi cukup (bukan abu-abu)
+     * - Hue (warna) di kisaran oranye (~4°–58°)
+     * - Tidak terlalu gelap / terlalu terang
+     */
     private fun isBasketballOrange(r: Int, g: Int, b: Int, y: Int): Boolean {
         if (r < 90) return false
         if (r < g) return false
@@ -233,7 +305,7 @@ class BallAnalyzer(
         if (maxc < 70) return false
         val sat = (maxc - minc).toFloat() / max(1, maxc)
         if (sat < 0.20f) return false
-        // hue approx for orange
+        // Perkiraan hue (sudut warna di lingkaran pelangi)
         val d = (maxc - minc).toFloat().coerceAtLeast(1f)
         var hue = when (maxc) {
             r -> ((g - b) / d) % 6f

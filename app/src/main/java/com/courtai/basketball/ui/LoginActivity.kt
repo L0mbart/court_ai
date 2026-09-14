@@ -17,6 +17,14 @@ import com.courtai.basketball.databinding.ActivityLoginBinding
 import com.courtai.basketball.update.ServerConfig
 import kotlinx.coroutines.launch
 
+/**
+ * ============================================================================
+ * LoginActivity.kt — layar masuk akun
+ * ============================================================================
+ *
+ * PERAN: password login ke server, atau buka cepat dengan biometrik.
+ * ALUR: isi email/telepon + password → AuthApi.login → AuthSession.save → MainActivity.
+ */
 class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
 
@@ -25,7 +33,7 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // If already logged in and biometric off, go home
+        // Sudah login & biometrik OFF → langsung ke beranda
         if (AuthSession.isLoggedIn(this) && !AuthSession.isBiometricEnabled(this)) {
             goHome()
             return
@@ -38,7 +46,7 @@ class LoginActivity : AppCompatActivity() {
         binding.btnBiometric.setOnClickListener { promptBiometric() }
         binding.btnServer.setOnClickListener { editServer() }
 
-        // Auto biometric unlock if session exists
+        // Ada sesi + biometrik ON → minta sidik jari/wajah otomatis
         if (AuthSession.isLoggedIn(this) && AuthSession.isBiometricEnabled(this) && canUseBiometric()) {
             binding.tvStatus.text = "Gunakan biometrik untuk masuk sebagai ${AuthSession.displayName(this)}"
             promptBiometric()
@@ -50,12 +58,14 @@ class LoginActivity : AppCompatActivity() {
         binding.btnBiometric.visibility = if (show) View.VISIBLE else View.GONE
     }
 
+    /** Cek apakah HP mendukung sidik jari / wajah. */
     private fun canUseBiometric(): Boolean {
         val mgr = BiometricManager.from(this)
         return mgr.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) ==
             BiometricManager.BIOMETRIC_SUCCESS
     }
 
+    /** Login dengan password ke server, lalu simpan sesi lokal. */
     private fun doPasswordLogin() {
         val id = binding.etIdentifier.text?.toString().orEmpty()
         val pw = binding.etPassword.text?.toString().orEmpty()
@@ -82,6 +92,7 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
+    /** Tampilkan dialog biometrik sistem Android. */
     private fun promptBiometric() {
         if (!AuthSession.isLoggedIn(this)) {
             Toast.makeText(this, "Login password dulu sekali", Toast.LENGTH_SHORT).show()
@@ -115,6 +126,7 @@ class LoginActivity : AppCompatActivity() {
         )
     }
 
+    /** Ubah alamat PC dashboard (IP + port). */
     private fun editServer() {
         val input = EditText(this).apply {
             setText(ServerConfig.getBaseUrl(this@LoginActivity))
@@ -133,6 +145,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun goHome() {
+        // Tutup login supaya Back tidak kembali ke sini
         startActivity(Intent(this, MainActivity::class.java))
         finish()
     }

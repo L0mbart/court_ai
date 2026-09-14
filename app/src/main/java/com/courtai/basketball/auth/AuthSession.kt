@@ -4,6 +4,23 @@ import android.content.Context
 import android.content.SharedPreferences
 import org.json.JSONObject
 
+/**
+ * ============================================================================
+ * AuthSession.kt — “dompet” sesi login di HP
+ * ============================================================================
+ *
+ * PERAN FILE:
+ * Menyimpan data user yang sudah login di SharedPreferences
+ * (memori kecil yang tetap ada setelah app ditutup).
+ *
+ * ALUR SINGKAT:
+ * 1. Login sukses → save(user).
+ * 2. MainActivity cek isLoggedIn() / current().
+ * 3. Logout → clear().
+ * 4. Opsional: flag biometrik (sidik jari / wajah) untuk buka cepat.
+ */
+
+/** Data user yang sedang login (dari server). */
 data class LoggedInUser(
     val id: String,
     val name: String,
@@ -12,6 +29,10 @@ data class LoggedInUser(
     val token: String
 )
 
+/**
+ * Penyimpanan lokal sesi auth.
+ * Analogi: kartu anggota di dompet — bisa dibaca, diganti, atau dibuang.
+ */
 object AuthSession {
     private const val PREFS = "courtai_auth"
     private const val KEY_JSON = "user_json"
@@ -20,8 +41,10 @@ object AuthSession {
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /** true jika ada data user tersimpan. */
     fun isLoggedIn(context: Context): Boolean = current(context) != null
 
+    /** Baca user dari prefs; null jika kosong / JSON rusak. */
     fun current(context: Context): LoggedInUser? {
         val raw = prefs(context).getString(KEY_JSON, null) ?: return null
         return try {
@@ -38,6 +61,7 @@ object AuthSession {
         }
     }
 
+    /** Simpan user setelah login berhasil. */
     fun save(context: Context, user: LoggedInUser) {
         val o = JSONObject()
             .put("id", user.id)
@@ -48,6 +72,7 @@ object AuthSession {
         prefs(context).edit().putString(KEY_JSON, o.toString()).apply()
     }
 
+    /** Hapus sesi (logout). */
     fun clear(context: Context) {
         prefs(context).edit().remove(KEY_JSON).apply()
     }
@@ -56,6 +81,7 @@ object AuthSession {
         prefs(context).edit().putBoolean(KEY_BIOMETRIC, enabled).apply()
     }
 
+    /** Biometrik aktif hanya jika flag ON dan masih ada user tersimpan. */
     fun isBiometricEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_BIOMETRIC, false) && isLoggedIn(context)
 

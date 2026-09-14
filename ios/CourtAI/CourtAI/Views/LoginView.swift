@@ -1,8 +1,24 @@
+// ============================================================================
+// LoginView.swift
+// CourtAI — Layar masuk (email/telepon + password)
+// ----------------------------------------------------------------------------
+// ALUR:
+//   User isi identifier + password → tombol Login
+//        ↓
+//   CourtAPI.login → AppSession.save(user)
+//        ↓
+//   RootView melihat isLoggedIn = true → lanjut biometrik atau Home
+//
+// Analogi: loket masuk stadion — tunjukkan tiket (akun), lalu boleh masuk lapangan.
+// ============================================================================
+
 import SwiftUI
+
+// MARK: - LoginView
 
 struct LoginView: View {
     @EnvironmentObject var session: AppSession
-    @State private var identifier = ""
+    @State private var identifier = ""   // email ATAU nomor telepon
     @State private var password = ""
     @State private var status = ""
     @State private var loading = false
@@ -35,6 +51,7 @@ struct LoginView: View {
                         .textFieldStyle(CourtFieldStyle())
                         .textContentType(.password)
 
+                    // Preferensi biometrik disimpan di AppSession (UserDefaults)
                     Toggle("Aktifkan biometrik setelah login", isOn: $session.biometricEnabled)
                         .foregroundStyle(CourtTheme.cream)
                         .tint(CourtTheme.orange)
@@ -69,10 +86,12 @@ struct LoginView: View {
         }
     }
 
+    // MARK: - Proses login
+
     private func login() async {
         loading = true
         status = "Menghubungkan ke server..."
-        defer { loading = false }
+        defer { loading = false } // selalu matikan loading di akhir (sukses/gagal)
         do {
             let user = try await CourtAPI.login(
                 base: session.baseURL,
@@ -87,6 +106,9 @@ struct LoginView: View {
     }
 }
 
+// MARK: - Gaya kotak input CourtAI
+
+/// Membuat TextField / SecureField terlihat selaras tema gelap + krem.
 private struct CourtFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration

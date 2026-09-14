@@ -5,6 +5,14 @@ import androidx.room.Insert
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * ============================================================================
+ * SessionDao.kt — perintah SQL ke tabel sessions (via Room)
+ * ============================================================================
+ *
+ * PERAN: interface DAO — Room yang menulis implementasi-nya.
+ * Dipakai SessionRepository untuk insert, list, dan total MAKE/MISS.
+ */
 @Dao
 interface SessionDao {
     @Insert

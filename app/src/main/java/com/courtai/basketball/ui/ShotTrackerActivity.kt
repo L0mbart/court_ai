@@ -34,8 +34,26 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
+/**
+ * ============================================================================
+ * ShotTrackerActivity.kt — layar lacak tembakan (MAKE / MISS)
+ * ============================================================================
+ *
+ * PERAN FILE:
+ * Kamera + kotak rim yang bisa digeser. Saat Start, mesin mendeteksi
+ * apakah bola masuk ring (MAKE) atau meleset (MISS). Bisa juga input manual.
+ *
+ * ALUR SINGKAT:
+ * 1. User drag kotak oranye ke posisi ring di layar.
+ * 2. Start → BallAnalyzer + ShotTrackerEngine aktif.
+ * 3. MAKE/MISS otomatis atau tombol manual → HUD update + flash teks.
+ * 4. Finish / waktu habis / target tercapai → simpan sesi.
+ *
+ * Analogi: kamera = mata; kotak rim = “lubang ring” virtual; engine = wasit.
+ */
 class ShotTrackerActivity : AppCompatActivity() {
     companion object {
+        /** Extra Intent: id drill dari DrillCatalog (mis. "free_throws"). */
         const val EXTRA_DRILL_ID = "drill_id"
     }
 
@@ -50,12 +68,15 @@ class ShotTrackerActivity : AppCompatActivity() {
     private var misses = 0
     private var tracking = false
     private var startedAt = 0L
+    /** Waktu terakumulasi saat pause (ms). */
     private var elapsedMs = 0L
     private var timerJob: Job? = null
     private lateinit var drillId: String
     private var useFrontCamera = false
     private var cameraProvider: ProcessCameraProvider? = null
     private var analysisUseCase: ImageAnalysis? = null
+
+    // ========== SETUP LAYAR ==========
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -144,6 +165,12 @@ class ShotTrackerActivity : AppCompatActivity() {
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
+    // ========== KAMERA + DETEKSI TEMBAKAN ==========
+
+    /**
+     * Pipeline: frame → BallAnalyzer → map koordinat → overlay + ShotTrackerEngine.
+     * Kotak rim dari OverlayView selalu disalin ke engine saat tracking.
+     */
     private fun startCamera() {
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener({
@@ -212,6 +239,12 @@ class ShotTrackerActivity : AppCompatActivity() {
         }
     }
 
+    // ========== START / PAUSE / TIMER ==========
+
+    /**
+     * Start: salin rim ke engine, mulai timer.
+     * Pause: simpan elapsed, tampilkan lagi panduan drag rim.
+     */
     private fun toggleTracking() {
         tracking = !tracking
         analyzer?.enabled = tracking
@@ -232,6 +265,10 @@ class ShotTrackerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Update timer; otomatis selesai jika drill punya batas waktu
+     * atau target jumlah MAKE.
+     */
     private fun startTimer() {
         timerJob?.cancel()
         val drill = DrillCatalog.byId(drillId)
@@ -255,6 +292,12 @@ class ShotTrackerActivity : AppCompatActivity() {
         }
     }
 
+    // ========== CATAT MAKE / MISS ==========
+
+    /**
+     * Tambah skor MAKE atau MISS.
+     * @param manual true jika dari tombol; false jika dari auto-detect
+     */
     private fun registerShot(event: ShotEvent, manual: Boolean) {
         when (event) {
             ShotEvent.MAKE -> makes++
@@ -287,6 +330,7 @@ class ShotTrackerActivity : AppCompatActivity() {
         binding.tvLiveFg.text = "$fg%"
     }
 
+    /** Simpan sesi ke Room, coba sync, lalu tutup Activity. */
     private fun finishSession() {
         if (tracking) {
             elapsedMs += SystemClock.elapsedRealtime() - startedAt
